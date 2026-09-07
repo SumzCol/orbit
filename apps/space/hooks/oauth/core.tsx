@@ -4,6 +4,8 @@
  * See the LICENSE file for details.
  */
 
+// icons
+import { ShieldCheck } from "lucide-react";
 // plane imports
 import { useSearchParams } from "next/navigation";
 import { useTheme } from "next-themes";
@@ -33,7 +35,8 @@ export const useCoreOAuthConfig = (oauthActionText: string): TOAuthConfigs => {
       (config?.is_google_enabled ||
         config?.is_github_enabled ||
         config?.is_gitlab_enabled ||
-        config?.is_gitea_enabled)) ||
+        config?.is_gitea_enabled ||
+        config?.is_oidc_enabled)) ||
     false;
   const oAuthOptions: TOAuthOption[] = [
     {
@@ -86,6 +89,26 @@ export const useCoreOAuthConfig = (oauthActionText: string): TOAuthConfigs => {
         );
       },
       enabled: config?.is_gitea_enabled,
+    },
+    {
+      id: "oidc",
+      // The provider is generic, so the button carries whatever the instance admin
+      // named their IdP rather than a hardcoded vendor.
+      text: `${oauthActionText} with ${config?.oidc_provider_name || "SSO"}`,
+      icon: <ShieldCheck className="h-[18px] w-[18px] text-tertiary" />,
+      onClick: () => {
+        // Encoded, unlike the providers above: useSearchParams() hands back a decoded
+        // value, so a next_path containing ? & or # would otherwise split into extra
+        // query parameters. The server decodes it again before validating.
+        // The Spaces endpoints, unlike the providers above which all point at the
+        // /app ones. Those log the user in with is_app=True and land them on the web
+        // app rather than back on Spaces; /auth/spaces/oidc/ uses the Spaces session
+        // keys, its own callback, and returns to SPACE_BASE_URL.
+        window.location.assign(
+          `${API_BASE_URL}/auth/spaces/oidc/${next_path ? `?next_path=${encodeURIComponent(next_path)}` : ``}`
+        );
+      },
+      enabled: config?.is_oidc_enabled,
     },
   ];
 

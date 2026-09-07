@@ -228,6 +228,24 @@ const errorCodeMessages: {
     title: `GitLab OAuth provider error`,
     message: () => `GitLab OAuth provider error. Please try again.`,
   },
+  // OIDC
+  [EAuthErrorCodes.OIDC_NOT_CONFIGURED]: {
+    title: `OIDC not configured`,
+    message: () => `OIDC not configured. Please contact your administrator.`,
+  },
+  [EAuthErrorCodes.OIDC_OAUTH_PROVIDER_ERROR]: {
+    title: `OIDC provider error`,
+    message: () => `OIDC provider error. Please try again.`,
+  },
+  [EAuthErrorCodes.OIDC_INVALID_ID_TOKEN]: {
+    title: `Sign in could not be verified`,
+    message: () => `We could not verify the response from your identity provider. Please try again.`,
+  },
+  [EAuthErrorCodes.OAUTH_PROVIDER_UNVERIFIED_EMAIL]: {
+    title: `Email address not verified`,
+    message: () =>
+      `Your identity provider has not verified this email address. Please verify it with your provider, or contact your administrator.`,
+  },
   // Reset Password
   [EAuthErrorCodes.INVALID_PASSWORD_TOKEN]: {
     title: `Invalid password token`,
@@ -340,6 +358,10 @@ export const authErrorHandler = (errorCode: EAuthErrorCodes, email?: string): TA
     EAuthErrorCodes.GOOGLE_OAUTH_PROVIDER_ERROR,
     EAuthErrorCodes.GITHUB_OAUTH_PROVIDER_ERROR,
     EAuthErrorCodes.GITLAB_OAUTH_PROVIDER_ERROR,
+    EAuthErrorCodes.OIDC_NOT_CONFIGURED,
+    EAuthErrorCodes.OIDC_OAUTH_PROVIDER_ERROR,
+    EAuthErrorCodes.OIDC_INVALID_ID_TOKEN,
+    EAuthErrorCodes.OAUTH_PROVIDER_UNVERIFIED_EMAIL,
     EAuthErrorCodes.INVALID_PASSWORD_TOKEN,
     EAuthErrorCodes.EXPIRED_PASSWORD_TOKEN,
     EAuthErrorCodes.INCORRECT_OLD_PASSWORD,
