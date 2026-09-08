@@ -67,6 +67,12 @@ jobs:
       dh_img_proxy: ${{ steps.set_env_variables.outputs.DH_IMG_PROXY }}
       dh_img_aio: ${{ steps.set_env_variables.outputs.DH_IMG_AIO }}
 
+      # Registry host and the owner prefix images are published under. Repository
+      # variables rather than secrets: none of these are sensitive, and keeping them
+      # out of the workflow means the destination can move without a code change.
+      gar_registry: ${{ steps.set_env_variables.outputs.GAR_REGISTRY }}
+      gar_owner: ${{ steps.set_env_variables.outputs.GAR_OWNER }}
+
       build_type: ${{steps.set_env_variables.outputs.BUILD_TYPE}}
       build_release: ${{ steps.set_env_variables.outputs.BUILD_RELEASE }}
       build_prerelease: ${{ steps.set_env_variables.outputs.BUILD_PRERELEASE }}
@@ -102,6 +108,24 @@ jobs:
           echo "DH_IMG_BACKEND=plane-backend" >> $GITHUB_OUTPUT
           echo "DH_IMG_PROXY=plane-proxy" >> $GITHUB_OUTPUT
           echo "DH_IMG_AIO=plane-aio-community" >> $GITHUB_OUTPUT
+
+          # A missing repository variable is an empty string rather than an error, so
+          # without this the host silently becomes "-docker.pkg.dev" and the run fails
+          # much later as an opaque login or push error.
+          MISSING=""
+          [ -z "${{ vars.GAR_REGION }}" ] && MISSING="$MISSING GAR_REGION"
+          [ -z "${{ vars.GCP_PROJECT }}" ] && MISSING="$MISSING GCP_PROJECT"
+          [ -z "${{ vars.GAR_REPO }}" ] && MISSING="$MISSING GAR_REPO"
+          if [ -n "$MISSING" ]; then
+            echo "::error::Missing repository variable(s):$MISSING. Set them under Settings -> Secrets and variables -> Actions -> Variables. Expected e.g. GAR_REGION=us-central1, GCP_PROJECT=my-project, GAR_REPO=plane."
+            exit 1
+          fi
+
+          # e.g. us-central1-docker.pkg.dev and
+          #      us-central1-docker.pkg.dev/my-project/my-repo
+          GAR_REGISTRY="${{ vars.GAR_REGION }}-docker.pkg.dev"
+          echo "GAR_REGISTRY=$GAR_REGISTRY" >> $GITHUB_OUTPUT
+          echo "GAR_OWNER=$GAR_REGISTRY/${{ vars.GCP_PROJECT }}/${{ vars.GAR_REPO }}" >> $GITHUB_OUTPUT
 
           echo "BUILD_TYPE=${{env.BUILD_TYPE}}" >> $GITHUB_OUTPUT
           BUILD_RELEASE=false
@@ -165,14 +189,15 @@ jobs:
         include: ${{ fromJSON(needs.branch_build_setup.outputs.gh_build_matrix) }}
     steps:
       - name: Admin Build and Push
-        uses: makeplane/actions/build-push@v1.6.0
+        uses: zerodarkzone/plane-actions/build-push@v1.1
         with:
           build-release: ${{ needs.branch_build_setup.outputs.build_release }}
           build-prerelease: ${{ needs.branch_build_setup.outputs.build_prerelease }}
           release-version: ${{ needs.branch_build_setup.outputs.release_version }}
           dockerhub-username: ${{ secrets.DOCKERHUB_USERNAME }}
           dockerhub-token: ${{ secrets.DOCKERHUB_TOKEN }}
-          docker-image-owner: makeplane
+          registry: ${{ needs.branch_build_setup.outputs.gar_registry }}
+          docker-image-owner: ${{ needs.branch_build_setup.outputs.gar_owner }}
           docker-image-name: ${{ needs.branch_build_setup.outputs.dh_img_admin }}
           build-context: .
           dockerfile-path: ./apps/admin/Dockerfile.admin
@@ -193,14 +218,15 @@ jobs:
     needs: [branch_build_setup, branch_build_push_admin]
     steps:
       - name: Merge Admin Manifest
-        uses: makeplane/actions/merge-manifest@v1.6.0
+        uses: zerodarkzone/plane-actions/merge-manifest@v1.1
         with:
           build-release: ${{ needs.branch_build_setup.outputs.build_release }}
           build-prerelease: ${{ needs.branch_build_setup.outputs.build_prerelease }}
           release-version: ${{ needs.branch_build_setup.outputs.release_version }}
           dockerhub-username: ${{ secrets.DOCKERHUB_USERNAME }}
           dockerhub-token: ${{ secrets.DOCKERHUB_TOKEN }}
-          docker-image-owner: makeplane
+          registry: ${{ needs.branch_build_setup.outputs.gar_registry }}
+          docker-image-owner: ${{ needs.branch_build_setup.outputs.gar_owner }}
           docker-image-name: ${{ needs.branch_build_setup.outputs.dh_img_admin }}
           digest-artifact-pattern: digest-admin-*
           expected-platforms: ${{ needs.branch_build_setup.outputs.gh_expected_platforms }}
@@ -216,14 +242,15 @@ jobs:
         include: ${{ fromJSON(needs.branch_build_setup.outputs.gh_build_matrix) }}
     steps:
       - name: Web Build and Push
-        uses: makeplane/actions/build-push@v1.6.0
+        uses: zerodarkzone/plane-actions/build-push@v1.1
         with:
           build-release: ${{ needs.branch_build_setup.outputs.build_release }}
           build-prerelease: ${{ needs.branch_build_setup.outputs.build_prerelease }}
           release-version: ${{ needs.branch_build_setup.outputs.release_version }}
           dockerhub-username: ${{ secrets.DOCKERHUB_USERNAME }}
           dockerhub-token: ${{ secrets.DOCKERHUB_TOKEN }}
-          docker-image-owner: makeplane
+          registry: ${{ needs.branch_build_setup.outputs.gar_registry }}
+          docker-image-owner: ${{ needs.branch_build_setup.outputs.gar_owner }}
           docker-image-name: ${{ needs.branch_build_setup.outputs.dh_img_web }}
           build-context: .
           dockerfile-path: ./apps/web/Dockerfile.web
@@ -244,14 +271,15 @@ jobs:
     needs: [branch_build_setup, branch_build_push_web]
     steps:
       - name: Merge Web Manifest
-        uses: makeplane/actions/merge-manifest@v1.6.0
+        uses: zerodarkzone/plane-actions/merge-manifest@v1.1
         with:
           build-release: ${{ needs.branch_build_setup.outputs.build_release }}
           build-prerelease: ${{ needs.branch_build_setup.outputs.build_prerelease }}
           release-version: ${{ needs.branch_build_setup.outputs.release_version }}
           dockerhub-username: ${{ secrets.DOCKERHUB_USERNAME }}
           dockerhub-token: ${{ secrets.DOCKERHUB_TOKEN }}
-          docker-image-owner: makeplane
+          registry: ${{ needs.branch_build_setup.outputs.gar_registry }}
+          docker-image-owner: ${{ needs.branch_build_setup.outputs.gar_owner }}
           docker-image-name: ${{ needs.branch_build_setup.outputs.dh_img_web }}
           digest-artifact-pattern: digest-web-*
           expected-platforms: ${{ needs.branch_build_setup.outputs.gh_expected_platforms }}
@@ -267,14 +295,15 @@ jobs:
         include: ${{ fromJSON(needs.branch_build_setup.outputs.gh_build_matrix) }}
     steps:
       - name: Space Build and Push
-        uses: makeplane/actions/build-push@v1.6.0
+        uses: zerodarkzone/plane-actions/build-push@v1.1
         with:
           build-release: ${{ needs.branch_build_setup.outputs.build_release }}
           build-prerelease: ${{ needs.branch_build_setup.outputs.build_prerelease }}
           release-version: ${{ needs.branch_build_setup.outputs.release_version }}
           dockerhub-username: ${{ secrets.DOCKERHUB_USERNAME }}
           dockerhub-token: ${{ secrets.DOCKERHUB_TOKEN }}
-          docker-image-owner: makeplane
+          registry: ${{ needs.branch_build_setup.outputs.gar_registry }}
+          docker-image-owner: ${{ needs.branch_build_setup.outputs.gar_owner }}
           docker-image-name: ${{ needs.branch_build_setup.outputs.dh_img_space }}
           build-context: .
           dockerfile-path: ./apps/space/Dockerfile.space
@@ -295,14 +324,15 @@ jobs:
     needs: [branch_build_setup, branch_build_push_space]
     steps:
       - name: Merge Space Manifest
-        uses: makeplane/actions/merge-manifest@v1.6.0
+        uses: zerodarkzone/plane-actions/merge-manifest@v1.1
         with:
           build-release: ${{ needs.branch_build_setup.outputs.build_release }}
           build-prerelease: ${{ needs.branch_build_setup.outputs.build_prerelease }}
           release-version: ${{ needs.branch_build_setup.outputs.release_version }}
           dockerhub-username: ${{ secrets.DOCKERHUB_USERNAME }}
           dockerhub-token: ${{ secrets.DOCKERHUB_TOKEN }}
-          docker-image-owner: makeplane
+          registry: ${{ needs.branch_build_setup.outputs.gar_registry }}
+          docker-image-owner: ${{ needs.branch_build_setup.outputs.gar_owner }}
           docker-image-name: ${{ needs.branch_build_setup.outputs.dh_img_space }}
           digest-artifact-pattern: digest-space-*
           expected-platforms: ${{ needs.branch_build_setup.outputs.gh_expected_platforms }}
@@ -318,14 +348,15 @@ jobs:
         include: ${{ fromJSON(needs.branch_build_setup.outputs.gh_build_matrix) }}
     steps:
       - name: Live Build and Push
-        uses: makeplane/actions/build-push@v1.6.0
+        uses: zerodarkzone/plane-actions/build-push@v1.1
         with:
           build-release: ${{ needs.branch_build_setup.outputs.build_release }}
           build-prerelease: ${{ needs.branch_build_setup.outputs.build_prerelease }}
           release-version: ${{ needs.branch_build_setup.outputs.release_version }}
           dockerhub-username: ${{ secrets.DOCKERHUB_USERNAME }}
           dockerhub-token: ${{ secrets.DOCKERHUB_TOKEN }}
-          docker-image-owner: makeplane
+          registry: ${{ needs.branch_build_setup.outputs.gar_registry }}
+          docker-image-owner: ${{ needs.branch_build_setup.outputs.gar_owner }}
           docker-image-name: ${{ needs.branch_build_setup.outputs.dh_img_live }}
           build-context: .
           dockerfile-path: ./apps/live/Dockerfile.live
@@ -346,14 +377,15 @@ jobs:
     needs: [branch_build_setup, branch_build_push_live]
     steps:
       - name: Merge Live Collaboration Manifest
-        uses: makeplane/actions/merge-manifest@v1.6.0
+        uses: zerodarkzone/plane-actions/merge-manifest@v1.1
         with:
           build-release: ${{ needs.branch_build_setup.outputs.build_release }}
           build-prerelease: ${{ needs.branch_build_setup.outputs.build_prerelease }}
           release-version: ${{ needs.branch_build_setup.outputs.release_version }}
           dockerhub-username: ${{ secrets.DOCKERHUB_USERNAME }}
           dockerhub-token: ${{ secrets.DOCKERHUB_TOKEN }}
-          docker-image-owner: makeplane
+          registry: ${{ needs.branch_build_setup.outputs.gar_registry }}
+          docker-image-owner: ${{ needs.branch_build_setup.outputs.gar_owner }}
           docker-image-name: ${{ needs.branch_build_setup.outputs.dh_img_live }}
           digest-artifact-pattern: digest-live-*
           expected-platforms: ${{ needs.branch_build_setup.outputs.gh_expected_platforms }}
@@ -369,14 +401,15 @@ jobs:
         include: ${{ fromJSON(needs.branch_build_setup.outputs.gh_build_matrix) }}
     steps:
       - name: Backend Build and Push
-        uses: makeplane/actions/build-push@v1.6.0
+        uses: zerodarkzone/plane-actions/build-push@v1.1
         with:
           build-release: ${{ needs.branch_build_setup.outputs.build_release }}
           build-prerelease: ${{ needs.branch_build_setup.outputs.build_prerelease }}
           release-version: ${{ needs.branch_build_setup.outputs.release_version }}
           dockerhub-username: ${{ secrets.DOCKERHUB_USERNAME }}
           dockerhub-token: ${{ secrets.DOCKERHUB_TOKEN }}
-          docker-image-owner: makeplane
+          registry: ${{ needs.branch_build_setup.outputs.gar_registry }}
+          docker-image-owner: ${{ needs.branch_build_setup.outputs.gar_owner }}
           docker-image-name: ${{ needs.branch_build_setup.outputs.dh_img_backend }}
           build-context: ./apps/api
           dockerfile-path: ./apps/api/Dockerfile.api
@@ -397,14 +430,15 @@ jobs:
     needs: [branch_build_setup, branch_build_push_api]
     steps:
       - name: Merge API Server Manifest
-        uses: makeplane/actions/merge-manifest@v1.6.0
+        uses: zerodarkzone/plane-actions/merge-manifest@v1.1
         with:
           build-release: ${{ needs.branch_build_setup.outputs.build_release }}
           build-prerelease: ${{ needs.branch_build_setup.outputs.build_prerelease }}
           release-version: ${{ needs.branch_build_setup.outputs.release_version }}
           dockerhub-username: ${{ secrets.DOCKERHUB_USERNAME }}
           dockerhub-token: ${{ secrets.DOCKERHUB_TOKEN }}
-          docker-image-owner: makeplane
+          registry: ${{ needs.branch_build_setup.outputs.gar_registry }}
+          docker-image-owner: ${{ needs.branch_build_setup.outputs.gar_owner }}
           docker-image-name: ${{ needs.branch_build_setup.outputs.dh_img_backend }}
           digest-artifact-pattern: digest-api-*
           expected-platforms: ${{ needs.branch_build_setup.outputs.gh_expected_platforms }}
@@ -420,14 +454,15 @@ jobs:
         include: ${{ fromJSON(needs.branch_build_setup.outputs.gh_build_matrix) }}
     steps:
       - name: Proxy Build and Push
-        uses: makeplane/actions/build-push@v1.6.0
+        uses: zerodarkzone/plane-actions/build-push@v1.1
         with:
           build-release: ${{ needs.branch_build_setup.outputs.build_release }}
           build-prerelease: ${{ needs.branch_build_setup.outputs.build_prerelease }}
           release-version: ${{ needs.branch_build_setup.outputs.release_version }}
           dockerhub-username: ${{ secrets.DOCKERHUB_USERNAME }}
           dockerhub-token: ${{ secrets.DOCKERHUB_TOKEN }}
-          docker-image-owner: makeplane
+          registry: ${{ needs.branch_build_setup.outputs.gar_registry }}
+          docker-image-owner: ${{ needs.branch_build_setup.outputs.gar_owner }}
           docker-image-name: ${{ needs.branch_build_setup.outputs.dh_img_proxy }}
           build-context: ./apps/proxy
           dockerfile-path: ./apps/proxy/Dockerfile.ce
@@ -448,14 +483,15 @@ jobs:
     needs: [branch_build_setup, branch_build_push_proxy]
     steps:
       - name: Merge Proxy Manifest
-        uses: makeplane/actions/merge-manifest@v1.6.0
+        uses: zerodarkzone/plane-actions/merge-manifest@v1.1
         with:
           build-release: ${{ needs.branch_build_setup.outputs.build_release }}
           build-prerelease: ${{ needs.branch_build_setup.outputs.build_prerelease }}
           release-version: ${{ needs.branch_build_setup.outputs.release_version }}
           dockerhub-username: ${{ secrets.DOCKERHUB_USERNAME }}
           dockerhub-token: ${{ secrets.DOCKERHUB_TOKEN }}
-          docker-image-owner: makeplane
+          registry: ${{ needs.branch_build_setup.outputs.gar_registry }}
+          docker-image-owner: ${{ needs.branch_build_setup.outputs.gar_owner }}
           docker-image-name: ${{ needs.branch_build_setup.outputs.dh_img_proxy }}
           digest-artifact-pattern: digest-proxy-*
           expected-platforms: ${{ needs.branch_build_setup.outputs.gh_expected_platforms }}
@@ -517,14 +553,15 @@ jobs:
       - branch_merge_proxy
     steps:
       - name: AIO Build and Push
-        uses: makeplane/actions/build-push@v1.6.0
+        uses: zerodarkzone/plane-actions/build-push@v1.1
         with:
           build-release: ${{ needs.branch_build_setup.outputs.build_release }}
           build-prerelease: ${{ needs.branch_build_setup.outputs.build_prerelease }}
           release-version: ${{ needs.branch_build_setup.outputs.release_version }}
           dockerhub-username: ${{ secrets.DOCKERHUB_USERNAME }}
           dockerhub-token: ${{ secrets.DOCKERHUB_TOKEN }}
-          docker-image-owner: makeplane
+          registry: ${{ needs.branch_build_setup.outputs.gar_registry }}
+          docker-image-owner: ${{ needs.branch_build_setup.outputs.gar_owner }}
           docker-image-name: ${{ needs.branch_build_setup.outputs.dh_img_aio }}
           build-context: ./deployments/aio/community
           dockerfile-path: ./deployments/aio/community/Dockerfile
@@ -547,14 +584,15 @@ jobs:
     needs: [branch_build_setup, branch_build_push_aio]
     steps:
       - name: Merge AIO Manifest
-        uses: makeplane/actions/merge-manifest@v1.6.0
+        uses: zerodarkzone/plane-actions/merge-manifest@v1.1
         with:
           build-release: ${{ needs.branch_build_setup.outputs.build_release }}
           build-prerelease: ${{ needs.branch_build_setup.outputs.build_prerelease }}
           release-version: ${{ needs.branch_build_setup.outputs.release_version }}
           dockerhub-username: ${{ secrets.DOCKERHUB_USERNAME }}
           dockerhub-token: ${{ secrets.DOCKERHUB_TOKEN }}
-          docker-image-owner: makeplane
+          registry: ${{ needs.branch_build_setup.outputs.gar_registry }}
+          docker-image-owner: ${{ needs.branch_build_setup.outputs.gar_owner }}
           docker-image-name: ${{ needs.branch_build_setup.outputs.dh_img_aio }}
           digest-artifact-pattern: digest-aio-*
           expected-platforms: ${{ needs.branch_build_setup.outputs.gh_expected_platforms }}
