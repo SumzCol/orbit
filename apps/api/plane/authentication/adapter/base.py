@@ -129,6 +129,7 @@ class Adapter:
             "github": "ENABLE_GITHUB_SYNC",
             "gitlab": "ENABLE_GITLAB_SYNC",
             "gitea": "ENABLE_GITEA_SYNC",
+            "oidc": "ENABLE_OIDC_SYNC",
         }
         config_key = provider_config_map.get(self.provider)
         if config_key:
@@ -142,6 +143,16 @@ class Adapter:
         Returns the uploaded file path or None if failed.
         """
         if not avatar_url:
+            return None
+
+        # Not every provider hands back a fetchable URL. Authentik, for one, generates a
+        # `data:image/svg+xml;base64,...` avatar for users with no uploaded picture, and
+        # OIDC providers in general are free to do the same. There is nothing to download
+        # from those, and passing one to the SSRF-safe fetcher below raises
+        # ValueError("Invalid URL scheme...") which log_exception records as a full stack
+        # trace on *every* sign-in. Returning early leaves the caller to store the value
+        # as-is, so such avatars still render.
+        if not str(avatar_url).lower().startswith(("http://", "https://")):
             return None
 
         try:

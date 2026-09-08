@@ -250,6 +250,56 @@ unsplash_config_variables = [
     },
 ]
 
+oidc_config_variables = [
+    {
+        "key": "IS_OIDC_ENABLED",
+        "value": os.environ.get("IS_OIDC_ENABLED", "0"),
+        "category": "OIDC",
+        "is_encrypted": False,
+    },
+    {
+        "key": "OIDC_ISSUER_URL",
+        "value": os.environ.get("OIDC_ISSUER_URL"),
+        "category": "OIDC",
+        "is_encrypted": False,
+    },
+    {
+        "key": "OIDC_CLIENT_ID",
+        "value": os.environ.get("OIDC_CLIENT_ID"),
+        "category": "OIDC",
+        "is_encrypted": False,
+    },
+    {
+        "key": "OIDC_CLIENT_SECRET",
+        "value": os.environ.get("OIDC_CLIENT_SECRET"),
+        "category": "OIDC",
+        "is_encrypted": True,
+    },
+    # Label shown on the sign-in button. The provider is generic, so the instance
+    # admin names it after their own IdP ("Okta", "Entra ID", "Keycloak").
+    {
+        "key": "OIDC_PROVIDER_NAME",
+        "value": os.environ.get("OIDC_PROVIDER_NAME", "SSO"),
+        "category": "OIDC",
+        "is_encrypted": False,
+    },
+    # Escape hatch for IdPs that do not emit email_verified (Entra ID commonly
+    # omits it). Setting this to "1" trusts the provider to only assert addresses
+    # it has verified — see the comment in provider/oauth/oidc.py.
+    {
+        "key": "OIDC_ALLOW_UNVERIFIED_EMAIL",
+        "value": os.environ.get("OIDC_ALLOW_UNVERIFIED_EMAIL", "0"),
+        "category": "OIDC",
+        "is_encrypted": False,
+    },
+    {
+        "key": "ENABLE_OIDC_SYNC",
+        "value": os.environ.get("ENABLE_OIDC_SYNC", "0"),
+        "category": "OIDC",
+        "is_encrypted": False,
+    },
+]
+
 core_config_variables = [
     *authentication_config_variables,
     *workspace_management_config_variables,
@@ -257,6 +307,7 @@ core_config_variables = [
     *github_config_variables,
     *gitlab_config_variables,
     *gitea_config_variables,
+    *oidc_config_variables,
     *smtp_config_variables,
     *llm_config_variables,
     *unsplash_config_variables,

@@ -79,6 +79,11 @@ export enum EAuthenticationErrorCodes {
   GOOGLE_OAUTH_PROVIDER_ERROR = "5115",
   GITHUB_OAUTH_PROVIDER_ERROR = "5120",
   GITLAB_OAUTH_PROVIDER_ERROR = "5121",
+  // OIDC
+  OIDC_NOT_CONFIGURED = "5113",
+  OIDC_OAUTH_PROVIDER_ERROR = "5114",
+  OIDC_INVALID_ID_TOKEN = "5116",
+  OAUTH_PROVIDER_UNVERIFIED_EMAIL = "5124",
   // Reset Password
   INVALID_PASSWORD_TOKEN = "5125",
   EXPIRED_PASSWORD_TOKEN = "5130",
@@ -288,6 +293,25 @@ const errorCodeMessages: {
     message: () => `GitLab OAuth provider error. Please try again.`,
   },
 
+  // OIDC
+  [EAuthenticationErrorCodes.OIDC_NOT_CONFIGURED]: {
+    title: `OIDC not configured`,
+    message: () => `OIDC not configured. Please contact your administrator.`,
+  },
+  [EAuthenticationErrorCodes.OIDC_OAUTH_PROVIDER_ERROR]: {
+    title: `OIDC provider error`,
+    message: () => `OIDC provider error. Please try again.`,
+  },
+  [EAuthenticationErrorCodes.OIDC_INVALID_ID_TOKEN]: {
+    title: `Sign in could not be verified`,
+    message: () => `We could not verify the response from your identity provider. Please try again.`,
+  },
+  [EAuthenticationErrorCodes.OAUTH_PROVIDER_UNVERIFIED_EMAIL]: {
+    title: `Email address not verified`,
+    message: () =>
+      `Your identity provider has not verified this email address. Please verify it with your provider, or contact your administrator.`,
+  },
+
   // Reset Password
   [EAuthenticationErrorCodes.INVALID_PASSWORD_TOKEN]: {
     title: `Invalid password token`,
@@ -414,6 +438,10 @@ export const authErrorHandler = (errorCode: EAuthenticationErrorCodes, email?: s
     EAuthenticationErrorCodes.GOOGLE_OAUTH_PROVIDER_ERROR,
     EAuthenticationErrorCodes.GITHUB_OAUTH_PROVIDER_ERROR,
     EAuthenticationErrorCodes.GITLAB_OAUTH_PROVIDER_ERROR,
+    EAuthenticationErrorCodes.OIDC_NOT_CONFIGURED,
+    EAuthenticationErrorCodes.OIDC_OAUTH_PROVIDER_ERROR,
+    EAuthenticationErrorCodes.OIDC_INVALID_ID_TOKEN,
+    EAuthenticationErrorCodes.OAUTH_PROVIDER_UNVERIFIED_EMAIL,
     EAuthenticationErrorCodes.INVALID_PASSWORD_TOKEN,
     EAuthenticationErrorCodes.EXPIRED_PASSWORD_TOKEN,
     EAuthenticationErrorCodes.INCORRECT_OLD_PASSWORD,
