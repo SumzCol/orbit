@@ -11,6 +11,7 @@ from django.test import RequestFactory
 
 from plane.db.models import User
 from plane.license.api.views import (
+    InstanceAdminEndpoint,
     InstanceUserActivateEndpoint,
     InstanceUserDeactivateEndpoint,
     InstanceUserEndpoint,
@@ -218,3 +219,59 @@ class TestActivateEndpoint:
         member = make_user("member@example.com")
         target = make_user("target@example.com")
         assert call(InstanceUserActivateEndpoint, member, target.id).status_code == 403
+
+
+@pytest.mark.unit
+@pytest.mark.django_db
+class TestInstanceAdminGrant:
+    """Granting admin access to someone who held it before.
+
+    InstanceAdmin is soft-deleted while unique_together (instance, user) is a plain
+    database constraint, so a revoked grant leaves a tombstone that a plain create()
+    collides with. The collision surfaced as "The payload is not valid" and made the
+    grant permanently unreachable for anyone ever demoted.
+    """
+
+    def _post(self, admin, email):
+        request = RequestFactory().post("/api/instances/admins/", {"email": email, "role": 20})
+        request.user = admin
+        return InstanceAdminEndpoint().dispatch(request)
+
+    def test_a_revoked_admin_can_be_granted_again(self, instance):
+        admin = make_user("admin@example.com")
+        InstanceAdmin.objects.create(instance=instance, user=admin, role=20)
+        target = make_user("target@example.com")
+
+        InstanceAdmin.objects.create(instance=instance, user=target, role=20)
+        # Exactly what InstanceAdminEndpoint.delete does: a queryset delete, which the
+        # soft-deletion queryset turns into `update(deleted_at=now)`.
+        InstanceAdmin.objects.filter(instance=instance, user=target).delete()
+        assert InstanceAdmin.all_objects.filter(user=target).count() == 1
+
+        response = self._post(admin, "target@example.com")
+
+        assert response.status_code == 201, response.data
+        # The tombstone is revived rather than duplicated.
+        assert InstanceAdmin.all_objects.filter(user=target).count() == 1
+        assert InstanceAdmin.objects.filter(user=target).count() == 1
+
+    def test_granting_twice_is_refused_rather_than_crashing(self, instance):
+        admin = make_user("admin@example.com")
+        InstanceAdmin.objects.create(instance=instance, user=admin, role=20)
+        target = make_user("target@example.com")
+        InstanceAdmin.objects.create(instance=instance, user=target, role=20)
+
+        response = self._post(admin, "target@example.com")
+
+        assert response.status_code == 409, response.data
+        assert InstanceAdmin.objects.filter(user=target).count() == 1
+
+    def test_a_first_time_grant_still_works(self, instance):
+        admin = make_user("admin@example.com")
+        InstanceAdmin.objects.create(instance=instance, user=admin, role=20)
+        make_user("target@example.com")
+
+        response = self._post(admin, "target@example.com")
+
+        assert response.status_code == 201, response.data
+        assert InstanceAdmin.objects.filter(user__email="target@example.com").count() == 1
