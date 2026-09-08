@@ -116,7 +116,17 @@ const UserManagementPage = observer(function UserManagementPage(_props: Route.Co
                     void runAction(userId, () => activateUser(userId), `${user.email} can sign in again.`)
                   }
                   onGrantAdmin={() =>
-                    void runAction(userId, () => grantAdmin(userId), `${user.email} now has God Mode access.`)
+                    void runAction(
+                      userId,
+                      () => grantAdmin(userId),
+                      // The grant itself always succeeds; whether it is usable does not
+                      // follow, because God Mode has no provider sign-in. Say so here so
+                      // an administrator learns it now rather than from a locked-out
+                      // colleague later.
+                      user.is_password_autoset
+                        ? `${user.email} now has God Mode access, but has no password yet. They must set one from their profile in the main app before they can sign in here.`
+                        : `${user.email} now has God Mode access.`
+                    )
                   }
                   onRevokeAdmin={() =>
                     void runAction(userId, () => revokeAdmin(userId), `${user.email} no longer has God Mode access.`)

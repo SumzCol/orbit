@@ -5,6 +5,8 @@
  */
 
 import { observer } from "mobx-react";
+// icons
+import { TriangleAlert } from "lucide-react";
 // plane internal packages
 import { Button } from "@makeplane/propel/components/button";
 import { Tooltip } from "@makeplane/propel/components/tooltip";
@@ -23,6 +25,14 @@ type TUserListItemProps = {
   onGrantAdmin: () => void;
   onRevokeAdmin: () => void;
 };
+
+/* God Mode authenticates by password alone — InstanceAdminSignInEndpoint calls
+   check_password and has no provider branch — so an account provisioned through OIDC
+   or any other provider holds a random password it can never know. Granting it admin
+   access is real but not sufficient, and the gap is invisible until someone is locked
+   out, so both the badge and the promote tooltip name it. */
+const NO_PASSWORD_EXPLANATION =
+  "God Mode signs in with an email and password only. This account was created through an identity provider and has no password, so it must set one from its profile in the main app before it can sign in here.";
 
 const fullName = (user: TInstanceUser) =>
   [user.first_name, user.last_name].filter(Boolean).join(" ") || user.display_name || user.email;
@@ -52,6 +62,14 @@ export const UserListItem = observer(function UserListItem(props: TUserListItemP
               <span className="flex-shrink-0 rounded-sm border border-subtle px-1.5 py-0.5 text-11 text-tertiary">
                 Admin
               </span>
+            )}
+            {user.is_instance_admin && user.is_password_autoset && (
+              <Tooltip label={NO_PASSWORD_EXPLANATION}>
+                <span className="flex flex-shrink-0 items-center gap-1 rounded-sm border border-warning-subtle bg-warning-subtle px-1.5 py-0.5 text-11 text-warning-primary">
+                  <TriangleAlert className="h-3 w-3" />
+                  No password
+                </span>
+              </Tooltip>
             )}
             {user.is_deactivated && (
               <Tooltip label="This account cannot sign in">
@@ -92,7 +110,13 @@ export const UserListItem = observer(function UserListItem(props: TUserListItemP
             </span>
           </Tooltip>
         ) : (
-          <Tooltip label="Grant access to God Mode">
+          <Tooltip
+            label={
+              user.is_password_autoset
+                ? `Grant access to God Mode. ${NO_PASSWORD_EXPLANATION}`
+                : "Grant access to God Mode"
+            }
+          >
             <span>
               <Button
                 variant="secondary"

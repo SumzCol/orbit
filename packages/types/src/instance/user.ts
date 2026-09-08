@@ -21,6 +21,13 @@ export type TInstanceUser = {
    * `last_logout_time` to tell those apart, so trust this over `is_active` alone.
    */
   is_deactivated: boolean;
+  /**
+   * True when the account has never chosen a password — it was provisioned through
+   * OIDC or another provider and given a random one. God Mode authenticates by
+   * password only, so such an account cannot sign in there until it sets one from
+   * its profile, even after being granted admin access.
+   */
+  is_password_autoset: boolean;
   is_instance_admin: boolean;
   /**
    * Primary key of the InstanceAdmin row, or null for a regular member. Removing

@@ -93,6 +93,18 @@ class TestInstanceUserEndpoint:
         assert rows["never@example.com"]["is_deactivated"] is False
         assert rows["gone@example.com"]["is_deactivated"] is True
 
+    def test_password_autoset_is_exposed(self, instance):
+        """God Mode authenticates by password alone, so an account provisioned through
+        a provider cannot sign in there even once it is an admin. The list carries the
+        flag so the interface can warn before someone is locked out."""
+        admin = make_user("admin@example.com")
+        InstanceAdmin.objects.create(instance=instance, user=admin, role=20)
+        make_user("oidc@example.com", is_password_autoset=True)
+
+        rows = {r["email"]: r for r in listing(admin)}
+        assert rows["oidc@example.com"]["is_password_autoset"] is True
+        assert rows["admin@example.com"]["is_password_autoset"] is False
+
     def test_a_non_admin_is_refused(self, instance):
         member = make_user("member@example.com")
         request = RequestFactory().get("/api/instances/users/")
@@ -155,6 +167,18 @@ class TestDeactivateEndpoint:
         bot = make_user("bot@localhost", is_bot=True)
         assert call(InstanceUserDeactivateEndpoint, admin, bot.id).status_code == 404
 
+    def test_password_autoset_is_exposed(self, instance):
+        """God Mode authenticates by password alone, so an account provisioned through
+        a provider cannot sign in there even once it is an admin. The list carries the
+        flag so the interface can warn before someone is locked out."""
+        admin = make_user("admin@example.com")
+        InstanceAdmin.objects.create(instance=instance, user=admin, role=20)
+        make_user("oidc@example.com", is_password_autoset=True)
+
+        rows = {r["email"]: r for r in listing(admin)}
+        assert rows["oidc@example.com"]["is_password_autoset"] is True
+        assert rows["admin@example.com"]["is_password_autoset"] is False
+
     def test_a_non_admin_is_refused(self, instance):
         member = make_user("member@example.com")
         target = make_user("target@example.com")
@@ -177,6 +201,18 @@ class TestActivateEndpoint:
         target.refresh_from_db()
         assert target.is_active is True
         assert target.last_logout_time is None
+
+    def test_password_autoset_is_exposed(self, instance):
+        """God Mode authenticates by password alone, so an account provisioned through
+        a provider cannot sign in there even once it is an admin. The list carries the
+        flag so the interface can warn before someone is locked out."""
+        admin = make_user("admin@example.com")
+        InstanceAdmin.objects.create(instance=instance, user=admin, role=20)
+        make_user("oidc@example.com", is_password_autoset=True)
+
+        rows = {r["email"]: r for r in listing(admin)}
+        assert rows["oidc@example.com"]["is_password_autoset"] is True
+        assert rows["admin@example.com"]["is_password_autoset"] is False
 
     def test_a_non_admin_is_refused(self, instance):
         member = make_user("member@example.com")

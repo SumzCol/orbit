@@ -26,6 +26,13 @@ class InstanceUserSerializer(BaseSerializer):
     ambiguous -- a freshly provisioned account has it false while having never been
     deactivated -- so the two fields together are what tell an administrator whether
     this person can currently sign in.
+
+    `is_password_autoset` is here because God Mode accepts only email and password:
+    InstanceAdminSignInEndpoint calls check_password and has no OAuth branch. An account
+    provisioned through OIDC or any other provider was given a random password it can
+    never know, so granting it admin access is not by itself enough to let it in. The
+    interface warns on this rather than hiding the action, since the person can set a
+    password from their profile at any time.
     """
 
     instance_admin_id = serializers.UUIDField(read_only=True, default=None)
@@ -46,6 +53,7 @@ class InstanceUserSerializer(BaseSerializer):
             "last_login_medium",
             "is_active",
             "is_deactivated",
+            "is_password_autoset",
             "is_instance_admin",
             "instance_admin_id",
         ]
