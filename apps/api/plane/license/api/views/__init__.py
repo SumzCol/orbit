@@ -22,7 +22,11 @@ from .admin import (
 )
 
 
-from .user import InstanceUserEndpoint
+from .user import (
+    InstanceUserActivateEndpoint,
+    InstanceUserDeactivateEndpoint,
+    InstanceUserEndpoint,
+)
 from .workspace import (
     InstanceWorkSpaceAvailabilityCheckEndpoint,
     InstanceWorkSpaceEndpoint,

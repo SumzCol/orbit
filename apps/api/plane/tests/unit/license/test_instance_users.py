@@ -10,7 +10,11 @@ import pytest
 from django.test import RequestFactory
 
 from plane.db.models import User
-from plane.license.api.views import InstanceUserEndpoint
+from plane.license.api.views import (
+    InstanceUserActivateEndpoint,
+    InstanceUserDeactivateEndpoint,
+    InstanceUserEndpoint,
+)
 from plane.license.models import Instance, InstanceAdmin
 
 
@@ -94,3 +98,87 @@ class TestInstanceUserEndpoint:
         request = RequestFactory().get("/api/instances/users/")
         request.user = member
         assert InstanceUserEndpoint().dispatch(request).status_code == 403
+
+
+def call(view, admin, target_id):
+    request = RequestFactory().post(f"/api/instances/users/{target_id}/")
+    request.user = admin
+    return view().dispatch(request, user_id=target_id)
+
+
+@pytest.mark.unit
+@pytest.mark.django_db
+class TestDeactivateEndpoint:
+    def test_an_admin_can_deactivate_a_member(self, instance):
+        admin = make_user("admin@example.com")
+        InstanceAdmin.objects.create(instance=instance, user=admin, role=20)
+        target = make_user("target@example.com")
+
+        assert call(InstanceUserDeactivateEndpoint, admin, target.id).status_code == 204
+        target.refresh_from_db()
+        assert target.is_active is False
+        assert target.last_logout_time is not None
+
+    def test_an_admin_cannot_deactivate_themselves(self, instance):
+        """Doing so would drop God Mode access along with the account, leaving no way
+        to undo it from the interface that did it."""
+        admin = make_user("admin@example.com")
+        InstanceAdmin.objects.create(instance=instance, user=admin, role=20)
+
+        response = call(InstanceUserDeactivateEndpoint, admin, admin.id)
+        assert response.status_code == 400
+        assert "your own account" in response.data["error"]
+
+        admin.refresh_from_db()
+        assert admin.is_active is True
+
+    def test_another_instance_admin_is_refused(self, instance):
+        admin = make_user("admin@example.com")
+        other_admin = make_user("other@example.com")
+        InstanceAdmin.objects.create(instance=instance, user=admin, role=20)
+        InstanceAdmin.objects.create(instance=instance, user=other_admin, role=20)
+
+        response = call(InstanceUserDeactivateEndpoint, admin, other_admin.id)
+        assert response.status_code == 400
+        assert "admin access" in response.data["error"]
+
+    def test_a_missing_user_is_404(self, instance):
+        import uuid as _uuid
+
+        admin = make_user("admin@example.com")
+        InstanceAdmin.objects.create(instance=instance, user=admin, role=20)
+        assert call(InstanceUserDeactivateEndpoint, admin, _uuid.uuid4()).status_code == 404
+
+    def test_a_bot_cannot_be_targeted(self, instance):
+        admin = make_user("admin@example.com")
+        InstanceAdmin.objects.create(instance=instance, user=admin, role=20)
+        bot = make_user("bot@localhost", is_bot=True)
+        assert call(InstanceUserDeactivateEndpoint, admin, bot.id).status_code == 404
+
+    def test_a_non_admin_is_refused(self, instance):
+        member = make_user("member@example.com")
+        target = make_user("target@example.com")
+        assert call(InstanceUserDeactivateEndpoint, member, target.id).status_code == 403
+
+
+@pytest.mark.unit
+@pytest.mark.django_db
+class TestActivateEndpoint:
+    def test_it_restores_sign_in(self, instance):
+        from plane.utils.user_deactivation import deactivate_user
+
+        admin = make_user("admin@example.com")
+        InstanceAdmin.objects.create(instance=instance, user=admin, role=20)
+        target = make_user("target@example.com")
+        deactivate_user(target=target)
+
+        assert call(InstanceUserActivateEndpoint, admin, target.id).status_code == 204
+
+        target.refresh_from_db()
+        assert target.is_active is True
+        assert target.last_logout_time is None
+
+    def test_a_non_admin_is_refused(self, instance):
+        member = make_user("member@example.com")
+        target = make_user("target@example.com")
+        assert call(InstanceUserActivateEndpoint, member, target.id).status_code == 403
