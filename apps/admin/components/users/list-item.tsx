@@ -20,6 +20,8 @@ type TUserListItemProps = {
   isSelf: boolean;
   onDeactivate: () => void;
   onActivate: () => void;
+  onGrantAdmin: () => void;
+  onRevokeAdmin: () => void;
 };
 
 const fullName = (user: TInstanceUser) =>
@@ -29,7 +31,7 @@ const joined = (value: string) =>
   new Date(value).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
 
 export const UserListItem = observer(function UserListItem(props: TUserListItemProps) {
-  const { user, isBusy, isSelf, onDeactivate, onActivate } = props;
+  const { user, isBusy, isSelf, onDeactivate, onActivate, onGrantAdmin, onRevokeAdmin } = props;
 
   return (
     <div className="flex items-center justify-between gap-4 rounded-lg border border-subtle bg-layer-1 p-3">
@@ -74,6 +76,39 @@ export const UserListItem = observer(function UserListItem(props: TUserListItemP
             {user.last_login_time ? `Last seen ${joined(user.last_login_time)}` : "Never signed in"}
           </div>
         </div>
+
+        {/* Admin access is independent of whether the account is active, so this is
+            offered either way. Revoking your own would drop you out of God Mode
+            mid-session, so it is withheld for the signed-in administrator. */}
+        {user.is_instance_admin ? (
+          <Tooltip label={isSelf ? "You cannot remove your own admin access" : "Demote to a regular member"}>
+            <span>
+              <Button
+                variant="secondary"
+                size="sm"
+                stretch="auto"
+                onClick={onRevokeAdmin}
+                loading={isBusy}
+                disabled={isSelf}
+                label="Remove admin"
+              />
+            </span>
+          </Tooltip>
+        ) : (
+          <Tooltip label="Grant access to God Mode">
+            <span>
+              <Button
+                variant="secondary"
+                size="sm"
+                stretch="auto"
+                onClick={onGrantAdmin}
+                loading={isBusy}
+                disabled={user.is_deactivated}
+                label="Make admin"
+              />
+            </span>
+          </Tooltip>
+        )}
 
         {user.is_deactivated ? (
           <Button variant="secondary" size="sm" stretch="auto" onClick={onActivate} loading={isBusy} label="Activate" />

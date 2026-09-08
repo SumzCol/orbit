@@ -43,6 +43,32 @@ export class InstanceUserService extends APIService {
   }
 
   /**
+   * Grants instance admin access. Addressed by email, which is what the existing
+   * endpoint accepts.
+   */
+  async grantAdmin(email: string): Promise<void> {
+    return this.post(`/api/instances/admins/`, { email, role: 20 })
+      .then((response) => response?.data)
+      .catch((error) => {
+        throw error?.response?.data;
+      });
+  }
+
+  /**
+   * Removes instance admin access.
+   *
+   * Takes the InstanceAdmin row's id, not the user's — the endpoint deletes that
+   * row. `instance_admin_id` on the listed user is exactly this value.
+   */
+  async revokeAdmin(instanceAdminId: string): Promise<void> {
+    return this.delete(`/api/instances/admins/${instanceAdminId}/`)
+      .then((response) => response?.data)
+      .catch((error) => {
+        throw error?.response?.data;
+      });
+  }
+
+  /**
    * Restores the ability to sign in. Workspace access is not restored — it is
    * granted again by invitation.
    */

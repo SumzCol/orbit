@@ -15,6 +15,7 @@ import { Input, InputGroup } from "@makeplane/propel/components/input";
 // components
 import { PageWrapper } from "@/components/common/page-wrapper";
 import { Skeleton } from "@/components/common/skeleton";
+import { ConfirmDeactivateModal } from "@/components/users/confirm-deactivate-modal";
 import { UserListItem } from "@/components/users/list-item";
 import { setToast, TOAST_TYPE } from "@/providers/toast";
 // hooks
@@ -35,10 +36,13 @@ const UserManagementPage = observer(function UserManagementPage(_props: Route.Co
     fetchNextUsers,
     deactivateUser,
     activateUser,
+    grantAdmin,
+    revokeAdmin,
   } = useInstanceUser();
   const { currentUser } = useUser();
-  // state — which row has an action in flight
+  // state — which row has an action in flight, and which is awaiting confirmation
   const [busyUserId, setBusyUserId] = useState<string | null>(null);
+  const [pendingDeactivation, setPendingDeactivation] = useState<string | null>(null);
 
   useSWR("INSTANCE_USERS", () => fetchUsers());
 
@@ -107,11 +111,15 @@ const UserManagementPage = observer(function UserManagementPage(_props: Route.Co
                   user={user}
                   isBusy={busyUserId === userId}
                   isSelf={currentUser?.id === userId}
-                  onDeactivate={() =>
-                    void runAction(userId, () => deactivateUser(userId), `${user.email} can no longer sign in.`)
-                  }
+                  onDeactivate={() => setPendingDeactivation(userId)}
                   onActivate={() =>
                     void runAction(userId, () => activateUser(userId), `${user.email} can sign in again.`)
+                  }
+                  onGrantAdmin={() =>
+                    void runAction(userId, () => grantAdmin(userId), `${user.email} now has God Mode access.`)
+                  }
+                  onRevokeAdmin={() =>
+                    void runAction(userId, () => revokeAdmin(userId), `${user.email} no longer has God Mode access.`)
                   }
                 />
               );
@@ -130,6 +138,21 @@ const UserManagementPage = observer(function UserManagementPage(_props: Route.Co
           />
         )}
       </div>
+
+      <ConfirmDeactivateModal
+        isOpen={pendingDeactivation !== null}
+        email={pendingDeactivation ? (users[pendingDeactivation]?.email ?? "") : ""}
+        isSubmitting={busyUserId !== null && busyUserId === pendingDeactivation}
+        handleClose={() => setPendingDeactivation(null)}
+        handleConfirm={() => {
+          const userId = pendingDeactivation;
+          if (!userId) return;
+          const email = users[userId]?.email ?? "";
+          void runAction(userId, () => deactivateUser(userId), `${email} can no longer sign in.`).then(() =>
+            setPendingDeactivation(null)
+          );
+        }}
+      />
     </PageWrapper>
   );
 });

@@ -25,6 +25,8 @@ export interface IInstanceUserStore {
   fetchUsers: (search?: string) => Promise<TInstanceUser[]>;
   fetchNextUsers: () => Promise<TInstanceUser[] | undefined>;
   deactivateUser: (userId: string) => Promise<void>;
+  grantAdmin: (userId: string) => Promise<void>;
+  revokeAdmin: (userId: string) => Promise<void>;
   activateUser: (userId: string) => Promise<void>;
 }
 
@@ -48,6 +50,8 @@ export class InstanceUserStore implements IInstanceUserStore {
       fetchUsers: action,
       fetchNextUsers: action,
       deactivateUser: action,
+      grantAdmin: action,
+      revokeAdmin: action,
       activateUser: action,
     });
     this.instanceUserService = new InstanceUserService();
@@ -106,6 +110,22 @@ export class InstanceUserStore implements IInstanceUserStore {
     await this.instanceUserService.deactivate(userId);
     // Refetched rather than patched locally: deactivation also suspends memberships
     // and drops sessions, and the row should reflect what the server now holds.
+    await this.fetchUsers();
+  };
+
+  grantAdmin = async (userId: string): Promise<void> => {
+    const user = this.users[userId];
+    if (!user) return;
+    await this.instanceUserService.grantAdmin(user.email);
+    await this.fetchUsers();
+  };
+
+  revokeAdmin = async (userId: string): Promise<void> => {
+    // The endpoint deletes the InstanceAdmin row, so it is addressed by that row's
+    // id rather than the user's. The list carries it for exactly this call.
+    const instanceAdminId = this.users[userId]?.instance_admin_id;
+    if (!instanceAdminId) return;
+    await this.instanceUserService.revokeAdmin(instanceAdminId);
     await this.fetchUsers();
   };
 
