@@ -42,7 +42,7 @@ function CustomSelect(props: ICustomSelectProps) {
   } = props;
   // states
   const [referenceElement, setReferenceElement] = useState<HTMLButtonElement | null>(null);
-  const [popperElement, setPopperElement] = useState<HTMLDivElement | null>(null);
+  const [popperElement, setPopperElement] = useState<HTMLElement | null>(null);
   const [isOpen, setIsOpen] = useState(false);
   // refs
   const dropdownRef = useRef<HTMLDivElement | null>(null);
@@ -119,15 +119,24 @@ function CustomSelect(props: ICustomSelectProps) {
         </>
         {isOpen &&
           createPortal(
-            <Combobox.Options as="ul" data-prevent-outside-click>
+            /* Popper's panel ref lives on Combobox.Options rather than on the styled div
+               inside it. React does not attach a ref to that inner div -- probes on the
+               <ul> above it and on a span below it both fire, that one never does -- so
+               usePopper never received a popper element and left the panel at its initial
+               top-left. Headless UI forwards this ref, and merges the style we pass with
+               the two CSS variables it sets, so both survive. */
+            <Combobox.Options
+              as="ul"
+              data-prevent-outside-click
+              ref={setPopperElement}
+              style={styles.popper}
+              {...attributes.popper}
+            >
               <div
                 className={cn(
                   "z-30 my-1 min-w-48 overflow-y-scroll rounded-md border-[0.5px] border-subtle-1 bg-surface-1 px-2 py-2.5 text-11 whitespace-nowrap focus:outline-none",
                   optionsClassName
                 )}
-                ref={setPopperElement}
-                style={styles.popper}
-                {...attributes.popper}
               >
                 <div
                   className={cn("space-y-1 overflow-y-scroll", {
