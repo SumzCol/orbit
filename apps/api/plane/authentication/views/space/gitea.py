@@ -14,7 +14,7 @@ from django.views import View
 from plane.authentication.provider.oauth.gitea import GiteaOAuthProvider
 from plane.authentication.utils.login import user_login
 from plane.license.models import Instance
-from plane.authentication.utils.host import base_host
+from plane.authentication.utils.host import base_host, space_redirect_url
 from plane.authentication.adapter.error import (
     AUTHENTICATION_ERROR_CODES,
     AuthenticationException,
@@ -92,9 +92,7 @@ class GiteaCallbackSpaceEndpoint(View):
             user_login(request=request, user=user, is_space=True)
             # Process workspace and project invitations
             # redirect to referer path
-            url = (
-                f"{base_host(request=request, is_space=True)}{str(validate_next_path(next_path)) if next_path else ''}"
-            )
+            url = space_redirect_url(request=request, next_path=next_path)
             return HttpResponseRedirect(url)
         except AuthenticationException as e:
             params = e.get_error_dict()

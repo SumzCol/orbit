@@ -14,12 +14,12 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from plane.authentication.provider.oauth.github import GitHubOAuthProvider
 from plane.authentication.utils.login import user_login
 from plane.license.models import Instance
-from plane.authentication.utils.host import base_host
+from plane.authentication.utils.host import base_host, space_redirect_url
 from plane.authentication.adapter.error import (
     AUTHENTICATION_ERROR_CODES,
     AuthenticationException,
 )
-from plane.utils.path_validator import get_safe_redirect_url, validate_next_path, get_allowed_hosts
+from plane.utils.path_validator import get_safe_redirect_url, get_allowed_hosts
 
 
 class GitHubOauthInitiateSpaceEndpoint(View):
@@ -90,9 +90,7 @@ class GitHubCallbackSpaceEndpoint(View):
             user_login(request=request, user=user, is_space=True)
             # Process workspace and project invitations
             # redirect to referer path
-            next_path = validate_next_path(next_path=next_path)
-
-            url = f"{base_host(request=request, is_space=True).rstrip('/')}{next_path}"
+            url = space_redirect_url(request=request, next_path=next_path)
             if url_has_allowed_host_and_scheme(url, allowed_hosts=get_allowed_hosts()):
                 return HttpResponseRedirect(url)
             else:

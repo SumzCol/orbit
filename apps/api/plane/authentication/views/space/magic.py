@@ -19,7 +19,7 @@ from plane.authentication.provider.credentials.magic_code import MagicCodeProvid
 from plane.authentication.utils.login import user_login
 from plane.bgtasks.magic_link_code_task import magic_link
 from plane.license.models import Instance
-from plane.authentication.utils.host import base_host
+from plane.authentication.utils.host import base_host, space_redirect_url
 from plane.db.models import User
 from plane.authentication.adapter.error import (
     AuthenticationException,
@@ -29,7 +29,7 @@ from plane.authentication.rate_limit import (
     AuthenticationThrottle,
     throttle_auth_redirect,
 )
-from plane.utils.path_validator import get_safe_redirect_url, validate_next_path, get_allowed_hosts
+from plane.utils.path_validator import get_safe_redirect_url, get_allowed_hosts
 
 
 class MagicGenerateSpaceEndpoint(APIView):
@@ -102,8 +102,7 @@ class MagicSignInSpaceEndpoint(View):
             # Login the user and record his device info
             user_login(request=request, user=user, is_space=True)
             # redirect to referer path
-            next_path = validate_next_path(next_path=next_path)
-            url = f"{base_host(request=request, is_space=True).rstrip('/')}{next_path}"
+            url = space_redirect_url(request=request, next_path=next_path)
             if url_has_allowed_host_and_scheme(url, allowed_hosts=get_allowed_hosts()):
                 return HttpResponseRedirect(url)
             else:
@@ -161,8 +160,7 @@ class MagicSignUpSpaceEndpoint(View):
             # Login the user and record his device info
             user_login(request=request, user=user, is_space=True)
             # redirect to referer path
-            next_path = validate_next_path(next_path=next_path)
-            url = f"{base_host(request=request, is_space=True).rstrip('/')}{next_path}"
+            url = space_redirect_url(request=request, next_path=next_path)
             if url_has_allowed_host_and_scheme(url, allowed_hosts=get_allowed_hosts()):
                 return HttpResponseRedirect(url)
             else:
