@@ -7,8 +7,11 @@ PLANE_INSTALL_DIR=$PWD/$SERVICE_FOLDER
 export APP_RELEASE=stable
 export DOCKERHUB_USER=makeplane
 export PULL_POLICY=${PULL_POLICY:-if_not_present}
-export GH_REPO=makeplane/plane
+export GH_REPO=SumzCol/orbit
 export RELEASE_DOWNLOAD_URL="https://github.com/$GH_REPO/releases/download"
+# Registry the images are published to. Overridable so a deployment can point at
+# a mirror or a local copy without editing this script.
+export PLANE_REGISTRY=${PLANE_REGISTRY:-us-east1-docker.pkg.dev/worklenz-474415/orbit}
 export FALLBACK_DOWNLOAD_URL="https://raw.githubusercontent.com/$GH_REPO/$BRANCH/deployments/cli/community"
 
 CPU_ARCH=$(uname -m)
@@ -77,7 +80,7 @@ function initialize(){
         return 1
     fi
 
-    local IMAGE_NAME=makeplane/plane-proxy
+    local IMAGE_NAME=$PLANE_REGISTRY/plane-proxy
     local IMAGE_TAG=${APP_RELEASE}
     docker manifest inspect "${IMAGE_NAME}:${IMAGE_TAG}" | grep -q "\"architecture\": \"${CPU_ARCH}\"" &
     local pid=$!
