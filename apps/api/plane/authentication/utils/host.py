@@ -11,6 +11,7 @@ from rest_framework.request import Request
 
 # Module imports
 from plane.utils.ip_address import get_client_ip
+from plane.utils.path_validator import validate_next_path
 
 
 def base_host(
@@ -65,3 +66,29 @@ def base_host(
 
 def user_ip(request: Request | HttpRequest) -> str:
     return get_client_ip(request=request)
+
+
+def space_redirect_url(request: Request | HttpRequest, next_path: str | None) -> str:
+    """Build the post-login redirect for the /spaces app.
+
+    base_host(is_space=True) already ends with SPACE_BASE_PATH's trailing slash, which
+    makes both naive forms wrong:
+
+      * stripping it and appending an empty next_path lands on /spaces, and the Spaces
+        app refuses that -- it declares a public base URL of /spaces/ and answers with
+        "did you mean to visit /spaces/ instead?";
+      * appending a next_path that also starts with "/" doubles the separator.
+
+    So the slash is kept when there is nothing to append and dropped when there is.
+    next_path is validated here, so callers do not need to pre-validate it.
+    """
+    base_url = base_host(request=request, is_space=True)
+    # Coerced rather than passed straight through: validate_next_path is annotated
+    # `str` and only guards non-strings at runtime, so handing it None would make this
+    # helper's own `str | None` signature dishonest. "" and None validate identically.
+    validated_path = validate_next_path(next_path or "")
+
+    if not validated_path:
+        return base_url
+
+    return f"{base_url.rstrip('/')}{validated_path}"
