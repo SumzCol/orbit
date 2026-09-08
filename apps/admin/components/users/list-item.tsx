@@ -10,7 +10,7 @@ import { Button } from "@makeplane/propel/components/button";
 import { Tooltip } from "@makeplane/propel/components/tooltip";
 import { DeactivatedUserOutline } from "@makeplane/propel/icons";
 import type { TInstanceUser } from "@plane/types";
-import { cn, getFileURL } from "@plane/utils";
+import { cn, getFileURL, renderFormattedDate } from "@plane/utils";
 
 type TUserListItemProps = {
   user: TInstanceUser;
@@ -26,9 +26,6 @@ type TUserListItemProps = {
 
 const fullName = (user: TInstanceUser) =>
   [user.first_name, user.last_name].filter(Boolean).join(" ") || user.display_name || user.email;
-
-const joined = (value: string) =>
-  new Date(value).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
 
 export const UserListItem = observer(function UserListItem(props: TUserListItemProps) {
   const { user, isBusy, isSelf, onDeactivate, onActivate, onGrantAdmin, onRevokeAdmin } = props;
@@ -71,9 +68,9 @@ export const UserListItem = observer(function UserListItem(props: TUserListItemP
 
       <div className="flex flex-shrink-0 items-center gap-4">
         <div className="hidden text-right text-13 text-tertiary sm:block">
-          <div>Joined {joined(user.date_joined)}</div>
+          <div>Joined {renderFormattedDate(user.date_joined)}</div>
           <div className={cn(user.last_login_time ? "" : "italic")}>
-            {user.last_login_time ? `Last seen ${joined(user.last_login_time)}` : "Never signed in"}
+            {user.last_login_time ? `Last seen ${renderFormattedDate(user.last_login_time)}` : "Never signed in"}
           </div>
         </div>
 
