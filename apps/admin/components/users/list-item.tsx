@@ -83,9 +83,16 @@ function Badges({ user }: { user: TInstanceUser }) {
 /* Every action below is wrapped in a span: a disabled button emits no hover, so the
    tooltip explaining why it is disabled would never appear without one. */
 
-/** Grant or remove God Mode access. Offered whether or not the account is active,
- *  since the two are independent; withheld for the signed-in administrator, whose own
- *  revocation would drop them out of God Mode mid-session. */
+/** Grant or remove God Mode access.
+ *
+ *  Removing it is offered whether or not the account is active -- stripping access from
+ *  a suspended account is exactly when you want it -- but withheld for the signed-in
+ *  administrator, whose own revocation would drop them out of God Mode mid-session.
+ *
+ *  Granting it to a deactivated account is refused. The server allows it, and nothing
+ *  deadlocks if it happens, but the grant would be inert: the account cannot sign in at
+ *  all, so it cannot reach God Mode, and the row would read Admin and Deactivated at
+ *  once. Activating first makes the grant mean something. */
 function AdminAccessAction(props: {
   user: TInstanceUser;
   isBusy: boolean;
@@ -112,10 +119,16 @@ function AdminAccessAction(props: {
       </Tooltip>
     );
 
+  // One value drives both the tooltip and `disabled`, so a refused action always
+  // explains itself -- a greyed button whose tooltip reads like an invitation is worse
+  // than no tooltip.
+  const refusal = user.is_deactivated ? "Activate this account before granting God Mode access" : undefined;
+
   return (
     <Tooltip
       label={
-        user.is_password_autoset ? `Grant access to God Mode. ${NO_PASSWORD_EXPLANATION}` : "Grant access to God Mode"
+        refusal ??
+        (user.is_password_autoset ? `Grant access to God Mode. ${NO_PASSWORD_EXPLANATION}` : "Grant access to God Mode")
       }
     >
       <span>
@@ -125,7 +138,7 @@ function AdminAccessAction(props: {
           stretch="auto"
           onClick={onGrantAdmin}
           loading={isBusy}
-          disabled={user.is_deactivated}
+          disabled={refusal !== undefined}
           label="Make admin"
         />
       </span>
