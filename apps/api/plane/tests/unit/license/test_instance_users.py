@@ -106,6 +106,37 @@ class TestInstanceUserEndpoint:
         assert rows["oidc@example.com"]["is_password_autoset"] is True
         assert rows["admin@example.com"]["is_password_autoset"] is False
 
+    def test_the_second_page_continues_where_the_first_stopped(self, instance):
+        """The list is cursor paginated and the interface has a Load more button, so the
+        second page has to carry the rest rather than repeat the first."""
+        admin = make_user("admin@example.com")
+        InstanceAdmin.objects.create(instance=instance, user=admin, role=20)
+        for i in range(6):
+            make_user(f"user{i}@example.com")
+
+        def page(cursor):
+            request = RequestFactory().get("/api/instances/users/", {"cursor": cursor, "per_page": 3})
+            request.user = admin
+            return InstanceUserEndpoint().dispatch(request).data
+
+        first = page("3:0:0")
+        assert len(first["results"]) == 3
+        assert first["total_count"] == 7  # six members plus the admin
+        assert first["next_page_results"] is True
+
+        second = page(first["next_cursor"])
+        assert len(second["results"]) == 3
+
+        first_emails = {r["email"] for r in first["results"]}
+        second_emails = {r["email"] for r in second["results"]}
+        assert first_emails.isdisjoint(second_emails)
+
+        last = page(second["next_cursor"])
+        assert len(last["results"]) == 1
+        assert last["next_page_results"] is False
+        # Every account is reachable by paging, none twice.
+        assert len(first_emails | second_emails | {r["email"] for r in last["results"]}) == 7
+
     def test_a_non_admin_is_refused(self, instance):
         member = make_user("member@example.com")
         request = RequestFactory().get("/api/instances/users/")
@@ -180,6 +211,37 @@ class TestDeactivateEndpoint:
         assert rows["oidc@example.com"]["is_password_autoset"] is True
         assert rows["admin@example.com"]["is_password_autoset"] is False
 
+    def test_the_second_page_continues_where_the_first_stopped(self, instance):
+        """The list is cursor paginated and the interface has a Load more button, so the
+        second page has to carry the rest rather than repeat the first."""
+        admin = make_user("admin@example.com")
+        InstanceAdmin.objects.create(instance=instance, user=admin, role=20)
+        for i in range(6):
+            make_user(f"user{i}@example.com")
+
+        def page(cursor):
+            request = RequestFactory().get("/api/instances/users/", {"cursor": cursor, "per_page": 3})
+            request.user = admin
+            return InstanceUserEndpoint().dispatch(request).data
+
+        first = page("3:0:0")
+        assert len(first["results"]) == 3
+        assert first["total_count"] == 7  # six members plus the admin
+        assert first["next_page_results"] is True
+
+        second = page(first["next_cursor"])
+        assert len(second["results"]) == 3
+
+        first_emails = {r["email"] for r in first["results"]}
+        second_emails = {r["email"] for r in second["results"]}
+        assert first_emails.isdisjoint(second_emails)
+
+        last = page(second["next_cursor"])
+        assert len(last["results"]) == 1
+        assert last["next_page_results"] is False
+        # Every account is reachable by paging, none twice.
+        assert len(first_emails | second_emails | {r["email"] for r in last["results"]}) == 7
+
     def test_a_non_admin_is_refused(self, instance):
         member = make_user("member@example.com")
         target = make_user("target@example.com")
@@ -214,6 +276,37 @@ class TestActivateEndpoint:
         rows = {r["email"]: r for r in listing(admin)}
         assert rows["oidc@example.com"]["is_password_autoset"] is True
         assert rows["admin@example.com"]["is_password_autoset"] is False
+
+    def test_the_second_page_continues_where_the_first_stopped(self, instance):
+        """The list is cursor paginated and the interface has a Load more button, so the
+        second page has to carry the rest rather than repeat the first."""
+        admin = make_user("admin@example.com")
+        InstanceAdmin.objects.create(instance=instance, user=admin, role=20)
+        for i in range(6):
+            make_user(f"user{i}@example.com")
+
+        def page(cursor):
+            request = RequestFactory().get("/api/instances/users/", {"cursor": cursor, "per_page": 3})
+            request.user = admin
+            return InstanceUserEndpoint().dispatch(request).data
+
+        first = page("3:0:0")
+        assert len(first["results"]) == 3
+        assert first["total_count"] == 7  # six members plus the admin
+        assert first["next_page_results"] is True
+
+        second = page(first["next_cursor"])
+        assert len(second["results"]) == 3
+
+        first_emails = {r["email"] for r in first["results"]}
+        second_emails = {r["email"] for r in second["results"]}
+        assert first_emails.isdisjoint(second_emails)
+
+        last = page(second["next_cursor"])
+        assert len(last["results"]) == 1
+        assert last["next_page_results"] is False
+        # Every account is reachable by paging, none twice.
+        assert len(first_emails | second_emails | {r["email"] for r in last["results"]}) == 7
 
     def test_a_non_admin_is_refused(self, instance):
         member = make_user("member@example.com")
