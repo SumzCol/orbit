@@ -42,7 +42,7 @@ function CustomSelect(props: ICustomSelectProps) {
   } = props;
   // states
   const [referenceElement, setReferenceElement] = useState<HTMLButtonElement | null>(null);
-  const [popperElement, setPopperElement] = useState<HTMLDivElement | null>(null);
+  const [popperElement, setPopperElement] = useState<HTMLElement | null>(null);
   const [isOpen, setIsOpen] = useState(false);
   // refs
   const dropdownRef = useRef<HTMLDivElement | null>(null);
@@ -119,26 +119,38 @@ function CustomSelect(props: ICustomSelectProps) {
         </>
         {isOpen &&
           createPortal(
-            <Combobox.Options as="ul" data-prevent-outside-click>
+            /* Combobox.Options is both the popper element and the panel. React does not
+               attach a ref to a plain div rendered here -- probes on this <ul> and on a
+               span two levels below it both fire, one on that div never did -- so with
+               the ref down there usePopper had no popper element and left the panel at
+               its initial top-left. Headless UI forwards the ref and merges the style we
+               pass with the two CSS variables it sets, so both survive.
+
+               The panel classes moved up with it rather than staying on a wrapper: they
+               only do anything on the element popper positions. z-index does not apply to
+               a static box, and a margin one level in pads the panel's inside instead of
+               offsetting it from the trigger. That goes for optionsClassName too, which
+               call sites use to pass z-10, z-30 and z-[9]. */
+            <Combobox.Options
+              as="ul"
+              data-prevent-outside-click
+              ref={setPopperElement}
+              style={styles.popper}
+              className={cn(
+                "z-30 my-1 min-w-48 overflow-y-scroll rounded-md border-[0.5px] border-subtle-1 bg-surface-1 px-2 py-2.5 text-11 whitespace-nowrap focus:outline-none",
+                optionsClassName
+              )}
+              {...attributes.popper}
+            >
               <div
-                className={cn(
-                  "z-30 my-1 min-w-48 overflow-y-scroll rounded-md border-[0.5px] border-subtle-1 bg-surface-1 px-2 py-2.5 text-11 whitespace-nowrap focus:outline-none",
-                  optionsClassName
-                )}
-                ref={setPopperElement}
-                style={styles.popper}
-                {...attributes.popper}
+                className={cn("space-y-1 overflow-y-scroll", {
+                  "max-h-60": maxHeight === "lg",
+                  "max-h-48": maxHeight === "md",
+                  "max-h-36": maxHeight === "rg",
+                  "max-h-28": maxHeight === "sm",
+                })}
               >
-                <div
-                  className={cn("space-y-1 overflow-y-scroll", {
-                    "max-h-60": maxHeight === "lg",
-                    "max-h-48": maxHeight === "md",
-                    "max-h-36": maxHeight === "rg",
-                    "max-h-28": maxHeight === "sm",
-                  })}
-                >
-                  {children}
-                </div>
+                {children}
               </div>
             </Combobox.Options>,
             document.body
