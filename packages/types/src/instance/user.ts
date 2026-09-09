@@ -1,0 +1,40 @@
+/**
+ * Copyright (c) 2023-present Plane Software, Inc. and contributors
+ * SPDX-License-Identifier: AGPL-3.0-only
+ * See the LICENSE file for details.
+ */
+
+export type TInstanceUser = {
+  id: string;
+  email: string;
+  first_name: string;
+  last_name: string;
+  display_name: string;
+  /** Null when the account has no avatar asset and no avatar URL. */
+  avatar_url: string | null;
+  date_joined: string;
+  /** Null until the account signs in for the first time. */
+  last_login_time: string | null;
+  /** Never null -- the column is non-nullable and defaults to "email". */
+  last_login_medium: string;
+  is_active: boolean;
+  /**
+   * Whether this account has been explicitly deactivated, as opposed to merely
+   * provisioned and never signed in. The server reads `is_active` together with
+   * `last_logout_time` to tell those apart, so trust this over `is_active` alone.
+   */
+  is_deactivated: boolean;
+  /**
+   * True when the account has never chosen a password — it was provisioned through
+   * OIDC or another provider and given a random one. God Mode authenticates by
+   * password only, so such an account cannot sign in there until it sets one from
+   * its profile, even after being granted admin access.
+   */
+  is_password_autoset: boolean;
+  is_instance_admin: boolean;
+  /**
+   * Primary key of the InstanceAdmin row, or null for a regular member. Removing
+   * admin access addresses that row, not the user, so it cannot be done without this.
+   */
+  instance_admin_id: string | null;
+};
