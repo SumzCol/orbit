@@ -10,10 +10,13 @@ export type TInstanceUser = {
   first_name: string;
   last_name: string;
   display_name: string;
-  avatar_url: string | undefined;
+  /** Null when the account has no avatar asset and no avatar URL. */
+  avatar_url: string | null;
   date_joined: string;
-  last_login_time: string | undefined;
-  last_login_medium: string | undefined;
+  /** Null until the account signs in for the first time. */
+  last_login_time: string | null;
+  /** Never null -- the column is non-nullable and defaults to "email". */
+  last_login_medium: string;
   is_active: boolean;
   /**
    * Whether this account has been explicitly deactivated, as opposed to merely

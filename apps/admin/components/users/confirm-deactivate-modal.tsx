@@ -24,7 +24,16 @@ export function ConfirmDeactivateModal(props: Props) {
 
   return (
     <Transition.Root show={isOpen} as={React.Fragment}>
-      <Dialog as="div" className="relative z-50" onClose={handleClose}>
+      {/* Escape and a backdrop click are ignored while the request is in flight: closing
+          then would hide a dialog whose outcome is still unknown, and the row it came
+          from would go on showing the pre-deactivation state until the toast landed. */}
+      <Dialog
+        as="div"
+        className="relative z-50"
+        onClose={() => {
+          if (!isSubmitting) handleClose();
+        }}
+      >
         <Transition.Child
           as={React.Fragment}
           enter="ease-out duration-300"

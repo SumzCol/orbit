@@ -17,6 +17,7 @@ own memberships and dropped their sessions while flagging the target's account.
 import uuid
 
 # Django imports
+from django.db.models import Count, Q
 from django.utils import timezone
 
 # Module imports
@@ -49,10 +50,14 @@ def _memberships_to_suspend(model, parent_field, target):
     """
     to_suspend = []
     for membership in model.objects.filter(member=target, is_active=True):
-        siblings = model.objects.filter(is_active=True, **{parent_field: getattr(membership, parent_field)})
-        other_admins = siblings.filter(role=ADMIN_ROLE).exclude(member_id=target.id).count()
+        # Both numbers come from one aggregate rather than two count() calls: they are
+        # different counts, not a repeat, so neither can be reused for the other.
+        siblings = model.objects.filter(is_active=True, **{parent_field: getattr(membership, parent_field)}).aggregate(
+            total=Count("id"),
+            other_admins=Count("id", filter=Q(role=ADMIN_ROLE) & ~Q(member_id=target.id)),
+        )
 
-        if other_admins > 0 or siblings.count() == 1:
+        if siblings["other_admins"] > 0 or siblings["total"] == 1:
             membership.is_active = False
             to_suspend.append(membership)
         else:

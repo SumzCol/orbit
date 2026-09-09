@@ -37,48 +37,152 @@ const NO_PASSWORD_EXPLANATION =
 const fullName = (user: TInstanceUser) =>
   [user.first_name, user.last_name].filter(Boolean).join(" ") || user.display_name || user.email;
 
+const PILL = "flex flex-shrink-0 items-center gap-1 rounded-sm border px-1.5 py-0.5 text-11";
+
+function Avatar({ user }: { user: TInstanceUser }) {
+  return (
+    <span className="relative flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-accent-primary text-11 text-on-color uppercase">
+      {user.avatar_url ? (
+        <img
+          src={getFileURL(user.avatar_url)}
+          className="absolute inset-0 h-full w-full rounded-full object-cover"
+          alt=""
+        />
+      ) : (
+        (fullName(user)[0] ?? "?")
+      )}
+    </span>
+  );
+}
+
+/** What this account is, and anything about it that needs explaining. */
+function Badges({ user }: { user: TInstanceUser }) {
+  return (
+    <>
+      {user.is_instance_admin && <span className={cn(PILL, "border-subtle text-tertiary")}>Admin</span>}
+      {user.is_instance_admin && user.is_password_autoset && (
+        <Tooltip label={NO_PASSWORD_EXPLANATION}>
+          <span className={cn(PILL, "border-warning-subtle bg-warning-subtle text-warning-primary")}>
+            <TriangleAlert className="h-3 w-3" />
+            No password
+          </span>
+        </Tooltip>
+      )}
+      {user.is_deactivated && (
+        <Tooltip label="This account cannot sign in">
+          <span className={cn(PILL, "border-subtle text-tertiary")}>
+            <DeactivatedUserOutline className="h-3 w-3" />
+            Deactivated
+          </span>
+        </Tooltip>
+      )}
+    </>
+  );
+}
+
+/* Every action below is wrapped in a span: a disabled button emits no hover, so the
+   tooltip explaining why it is disabled would never appear without one. */
+
+/** Grant or remove God Mode access. Offered whether or not the account is active,
+ *  since the two are independent; withheld for the signed-in administrator, whose own
+ *  revocation would drop them out of God Mode mid-session. */
+function AdminAccessAction(props: {
+  user: TInstanceUser;
+  isBusy: boolean;
+  isSelf: boolean;
+  onGrantAdmin: () => void;
+  onRevokeAdmin: () => void;
+}) {
+  const { user, isBusy, isSelf, onGrantAdmin, onRevokeAdmin } = props;
+
+  if (user.is_instance_admin)
+    return (
+      <Tooltip label={isSelf ? "You cannot remove your own admin access" : "Demote to a regular member"}>
+        <span>
+          <Button
+            variant="secondary"
+            size="sm"
+            stretch="auto"
+            onClick={onRevokeAdmin}
+            loading={isBusy}
+            disabled={isSelf}
+            label="Remove admin"
+          />
+        </span>
+      </Tooltip>
+    );
+
+  return (
+    <Tooltip
+      label={
+        user.is_password_autoset ? `Grant access to God Mode. ${NO_PASSWORD_EXPLANATION}` : "Grant access to God Mode"
+      }
+    >
+      <span>
+        <Button
+          variant="secondary"
+          size="sm"
+          stretch="auto"
+          onClick={onGrantAdmin}
+          loading={isBusy}
+          disabled={user.is_deactivated}
+          label="Make admin"
+        />
+      </span>
+    </Tooltip>
+  );
+}
+
+/** Suspend or restore sign-in. An instance admin must be demoted first, so that
+ *  losing an administrator is always a deliberate second step. */
+function AccountStateAction(props: {
+  user: TInstanceUser;
+  isBusy: boolean;
+  isSelf: boolean;
+  onDeactivate: () => void;
+  onActivate: () => void;
+}) {
+  const { user, isBusy, isSelf, onDeactivate, onActivate } = props;
+
+  if (user.is_deactivated)
+    return (
+      <Button variant="secondary" size="sm" stretch="auto" onClick={onActivate} loading={isBusy} label="Activate" />
+    );
+
+  const refusal = isSelf
+    ? "You cannot deactivate your own account"
+    : user.is_instance_admin
+      ? "Remove admin access before deactivating"
+      : undefined;
+
+  return (
+    <Tooltip label={refusal ?? "Suspend this account"}>
+      <span>
+        <Button
+          variant="danger"
+          size="sm"
+          stretch="auto"
+          onClick={onDeactivate}
+          loading={isBusy}
+          disabled={refusal !== undefined}
+          label="Deactivate"
+        />
+      </span>
+    </Tooltip>
+  );
+}
+
 export const UserListItem = observer(function UserListItem(props: TUserListItemProps) {
   const { user, isBusy, isSelf, onDeactivate, onActivate, onGrantAdmin, onRevokeAdmin } = props;
 
   return (
     <div className="flex items-center justify-between gap-4 rounded-lg border border-subtle bg-layer-1 p-3">
       <div className="flex min-w-0 items-center gap-3">
-        <span className="relative flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-accent-primary text-11 text-on-color uppercase">
-          {user.avatar_url ? (
-            <img
-              src={getFileURL(user.avatar_url)}
-              className="absolute inset-0 h-full w-full rounded-full object-cover"
-              alt=""
-            />
-          ) : (
-            (fullName(user)[0] ?? "?")
-          )}
-        </span>
-
+        <Avatar user={user} />
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <span className="text-sm truncate font-medium text-primary">{fullName(user)}</span>
-            {user.is_instance_admin && (
-              <span className="flex-shrink-0 rounded-sm border border-subtle px-1.5 py-0.5 text-11 text-tertiary">
-                Admin
-              </span>
-            )}
-            {user.is_instance_admin && user.is_password_autoset && (
-              <Tooltip label={NO_PASSWORD_EXPLANATION}>
-                <span className="flex flex-shrink-0 items-center gap-1 rounded-sm border border-warning-subtle bg-warning-subtle px-1.5 py-0.5 text-11 text-warning-primary">
-                  <TriangleAlert className="h-3 w-3" />
-                  No password
-                </span>
-              </Tooltip>
-            )}
-            {user.is_deactivated && (
-              <Tooltip label="This account cannot sign in">
-                <span className="flex flex-shrink-0 items-center gap-1 rounded-sm border border-subtle px-1.5 py-0.5 text-11 text-tertiary">
-                  <DeactivatedUserOutline className="h-3 w-3" />
-                  Deactivated
-                </span>
-              </Tooltip>
-            )}
+            <Badges user={user} />
           </div>
           <div className="truncate text-13 text-tertiary">{user.email}</div>
         </div>
@@ -92,71 +196,20 @@ export const UserListItem = observer(function UserListItem(props: TUserListItemP
           </div>
         </div>
 
-        {/* Admin access is independent of whether the account is active, so this is
-            offered either way. Revoking your own would drop you out of God Mode
-            mid-session, so it is withheld for the signed-in administrator. */}
-        {user.is_instance_admin ? (
-          <Tooltip label={isSelf ? "You cannot remove your own admin access" : "Demote to a regular member"}>
-            <span>
-              <Button
-                variant="secondary"
-                size="sm"
-                stretch="auto"
-                onClick={onRevokeAdmin}
-                loading={isBusy}
-                disabled={isSelf}
-                label="Remove admin"
-              />
-            </span>
-          </Tooltip>
-        ) : (
-          <Tooltip
-            label={
-              user.is_password_autoset
-                ? `Grant access to God Mode. ${NO_PASSWORD_EXPLANATION}`
-                : "Grant access to God Mode"
-            }
-          >
-            <span>
-              <Button
-                variant="secondary"
-                size="sm"
-                stretch="auto"
-                onClick={onGrantAdmin}
-                loading={isBusy}
-                disabled={user.is_deactivated}
-                label="Make admin"
-              />
-            </span>
-          </Tooltip>
-        )}
-
-        {user.is_deactivated ? (
-          <Button variant="secondary" size="sm" stretch="auto" onClick={onActivate} loading={isBusy} label="Activate" />
-        ) : (
-          <Tooltip
-            label={
-              isSelf
-                ? "You cannot deactivate your own account"
-                : user.is_instance_admin
-                  ? "Remove admin access before deactivating"
-                  : "Suspend this account"
-            }
-          >
-            {/* Wrapped: a disabled button does not emit the hover the tooltip needs. */}
-            <span>
-              <Button
-                variant="danger"
-                size="sm"
-                stretch="auto"
-                onClick={onDeactivate}
-                loading={isBusy}
-                disabled={isSelf || user.is_instance_admin}
-                label="Deactivate"
-              />
-            </span>
-          </Tooltip>
-        )}
+        <AdminAccessAction
+          user={user}
+          isBusy={isBusy}
+          isSelf={isSelf}
+          onGrantAdmin={onGrantAdmin}
+          onRevokeAdmin={onRevokeAdmin}
+        />
+        <AccountStateAction
+          user={user}
+          isBusy={isBusy}
+          isSelf={isSelf}
+          onDeactivate={onDeactivate}
+          onActivate={onActivate}
+        />
       </div>
     </div>
   );
