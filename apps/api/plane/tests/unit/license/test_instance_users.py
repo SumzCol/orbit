@@ -137,6 +137,20 @@ class TestInstanceUserEndpoint:
         # Every account is reachable by paging, none twice.
         assert len(first_emails | second_emails | {r["email"] for r in last["results"]}) == 7
 
+    def test_the_default_page_is_not_the_whole_instance(self, instance):
+        """The paginator's own default is 1000 a page, which would leave the Load more
+        button unreachable on any instance smaller than that. Pinned so a silent revert
+        to the default is caught here rather than by a browser rendering a thousand rows."""
+        admin = make_user("admin@example.com")
+        InstanceAdmin.objects.create(instance=instance, user=admin, role=20)
+
+        request = RequestFactory().get("/api/instances/users/")
+        request.user = admin
+        data = InstanceUserEndpoint().dispatch(request).data
+
+        # Cursors are "per_page:offset:is_prev".
+        assert data["next_cursor"].startswith("100:")
+
     def test_admin_rows_are_scoped_to_the_active_instance(self, instance):
         """The annotated id is handed straight to InstanceAdminEndpoint.delete, which
         filters on the active instance. An id from another Instance row would make

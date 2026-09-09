@@ -70,18 +70,28 @@ class InstanceAdminEndpoint(BaseAPIView):
         # held it before fails the constraint and surfaces as "The payload is not valid",
         # which makes the grant permanently unreachable. Revive the row instead -- that
         # is what granting access means whether or not one was there before.
-        instance_admin = InstanceAdmin.all_objects.filter(instance=instance, user=user).first()
-        if instance_admin is None:
-            instance_admin = InstanceAdmin.objects.create(instance=instance, user=user, role=role)
-        elif instance_admin.deleted_at is not None:
-            instance_admin.deleted_at = None
-            instance_admin.role = role
-            instance_admin.save()
-        else:
-            return Response(
-                {"error": "This user is already an instance admin"},
-                status=status.HTTP_409_CONFLICT,
-            )
+        #
+        # Serialised on the Instance singleton, the same lock InstanceAdminSignUpEndpoint
+        # takes for its own check-and-create. Read-then-write is racy on its own: two
+        # concurrent grants for one user can both find no row and both create, and the
+        # loser's UNIQUE violation reaches the caller as the generic "payload is not
+        # valid" that the revive below exists to stop producing. Grants are rare enough
+        # that serialising them instance-wide costs nothing.
+        with transaction.atomic():
+            Instance.objects.select_for_update().get(pk=instance.pk)
+
+            instance_admin = InstanceAdmin.all_objects.filter(instance=instance, user=user).first()
+            if instance_admin is None:
+                instance_admin = InstanceAdmin.objects.create(instance=instance, user=user, role=role)
+            elif instance_admin.deleted_at is not None:
+                instance_admin.deleted_at = None
+                instance_admin.role = role
+                instance_admin.save()
+            else:
+                return Response(
+                    {"error": "This user is already an instance admin"},
+                    status=status.HTTP_409_CONFLICT,
+                )
 
         serializer = InstanceAdminSerializer(instance_admin)
         return Response(serializer.data, status=status.HTTP_201_CREATED)

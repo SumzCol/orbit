@@ -51,10 +51,16 @@ class InstanceUserEndpoint(BaseAPIView):
                 | Q(last_name__icontains=search)
             )
 
+        # The paginator defaults to 1000 a page. That is the wrong default for an
+        # instance-wide list: it makes the first response as large as the instance, hands
+        # the browser a thousand unvirtualised rows, and leaves the Load more button --
+        # and the paging behind it -- unreachable on every instance smaller than that.
+        # A caller that wants more can still ask, up to the paginator's own maximum.
         return self.paginate(
             request=request,
             queryset=users.order_by("-date_joined"),
             on_results=lambda results: InstanceUserSerializer(results, many=True).data,
+            default_per_page=100,
         )
 
 
