@@ -35,7 +35,7 @@ class InstanceUserSerializer(BaseSerializer):
     password from their profile at any time.
     """
 
-    instance_admin_id = serializers.UUIDField(read_only=True, default=None)
+    instance_admin_id = serializers.UUIDField(read_only=True, default=None, allow_null=True)
     is_instance_admin = serializers.SerializerMethodField()
     is_deactivated = serializers.SerializerMethodField()
 

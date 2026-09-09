@@ -36,6 +36,9 @@ export class InstanceUserStore implements IInstanceUserStore {
   users: Record<string, TInstanceUser> = {};
   paginationInfo: TPaginationInfo | undefined = undefined;
   search = "";
+  /** Sequence number of the most recent list request. Deliberately not observable --
+   *  it is bookkeeping, and nothing renders from it. */
+  private latestListRequest = 0;
   // services
   instanceUserService;
 
@@ -67,9 +70,14 @@ export class InstanceUserStore implements IInstanceUserStore {
   };
 
   fetchUsers = async (search?: string): Promise<TInstanceUser[]> => {
+    // Typing fires one request per keystroke, on top of the initial fetch, and they can
+    // land out of order. Without this an older, slower response would overwrite the list
+    // with results for a term the person has already typed past.
+    const requestId = ++this.latestListRequest;
     try {
       this.loader = this.userIds.length > 0 ? "mutation" : "init-loader";
       const page = await this.instanceUserService.list(search ?? this.search);
+      if (requestId !== this.latestListRequest) return page.results;
       runInAction(() => {
         const { results, ...paginationInfo } = page;
         // Replaced rather than merged: a search returns a different set, and keeping
@@ -83,15 +91,23 @@ export class InstanceUserStore implements IInstanceUserStore {
       console.error("Error fetching instance users", error);
       throw error;
     } finally {
-      this.loader = "loaded";
+      // Only the newest request owns the loader; an outdated one clearing it would
+      // hide the spinner while the current request is still running.
+      if (requestId === this.latestListRequest) this.loader = "loaded";
     }
   };
 
   fetchNextUsers = async (): Promise<TInstanceUser[] | undefined> => {
+    if (!this.paginationInfo?.next_page_results || this.paginationInfo?.next_cursor === undefined) return undefined;
+    // Counted alongside fetchUsers: a page that arrives after the search has moved on
+    // belongs to the previous result set, and merging it would put back rows that no
+    // longer match. Read outside the try so the finally can see it too.
+    const requestId = ++this.latestListRequest;
+    const cursor = this.paginationInfo.next_cursor;
     try {
-      if (!this.paginationInfo?.next_page_results || this.paginationInfo?.next_cursor === undefined) return undefined;
       this.loader = "pagination";
-      const page = await this.instanceUserService.list(this.search, this.paginationInfo.next_cursor);
+      const page = await this.instanceUserService.list(this.search, cursor);
+      if (requestId !== this.latestListRequest) return page.results;
       runInAction(() => {
         const { results, ...paginationInfo } = page;
         results.forEach((user) => set(this.users, [user.id], user));
@@ -102,7 +118,7 @@ export class InstanceUserStore implements IInstanceUserStore {
       console.error("Error fetching more instance users", error);
       throw error;
     } finally {
-      this.loader = "loaded";
+      if (requestId === this.latestListRequest) this.loader = "loaded";
     }
   };
 
