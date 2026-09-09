@@ -3,15 +3,12 @@
 # See the LICENSE file for details.
 
 # Python imports
-import uuid
 import json
 import logging
 import secrets
 
 # Django imports
-from django.db.models import Case, Count, IntegerField, Q, When
 from django.contrib.auth import logout
-from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import cache_control
 from django.views.decorators.vary import vary_on_cookie
@@ -37,16 +34,12 @@ from plane.db.models import (
     Account,
     IssueActivity,
     Profile,
-    ProjectMember,
     User,
-    WorkspaceMember,
-    WorkspaceMemberInvite,
-    Session,
 )
 from plane.license.models import Instance, InstanceAdmin
 from plane.utils.paginator import BasePaginator
+from plane.utils.user_deactivation import deactivate_user
 from plane.utils.order_queryset import ACTIVITY_ORDER_BY_ALLOWLIST, sanitize_order_by
-from plane.authentication.utils.host import user_ip
 from plane.bgtasks.user_deactivation_email_task import user_deactivation_email
 from plane.utils.host import base_host
 from plane.bgtasks.user_email_update_task import send_email_update_magic_code, send_email_update_confirmation
@@ -250,95 +243,14 @@ class UserEndpoint(BaseViewSet):
         return Response(serialized_data, status=status.HTTP_200_OK)
 
     def deactivate(self, request):
-        # Check all workspace user is active
+        # Same operation the God Mode endpoint performs, through the same helper, so
+        # the two cannot drift. Self-service passes the requesting user as both the
+        # target and the actor, which is what makes last_logout_ip meaningful here.
         user = self.get_object()
 
-        # Instance admin check
-        if InstanceAdmin.objects.filter(user=user).exists():
-            return Response(
-                {"error": "You cannot deactivate your account since you are an instance admin"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        projects_to_deactivate = []
-        workspaces_to_deactivate = []
-
-        projects = ProjectMember.objects.filter(member=request.user, is_active=True).annotate(
-            other_admin_exists=Count(
-                Case(
-                    When(Q(role=20, is_active=True) & ~Q(member=request.user), then=1),
-                    default=0,
-                    output_field=IntegerField(),
-                )
-            ),
-            total_members=Count("id"),
-        )
-
-        for project in projects:
-            if project.other_admin_exists > 0 or (project.total_members == 1):
-                project.is_active = False
-                projects_to_deactivate.append(project)
-            else:
-                return Response(
-                    {"error": "You cannot deactivate account as you are the only admin in some projects."},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
-        workspaces = WorkspaceMember.objects.filter(member=request.user, is_active=True).annotate(
-            other_admin_exists=Count(
-                Case(
-                    When(Q(role=20, is_active=True) & ~Q(member=request.user), then=1),
-                    default=0,
-                    output_field=IntegerField(),
-                )
-            ),
-            total_members=Count("id"),
-        )
-
-        for workspace in workspaces:
-            if workspace.other_admin_exists > 0 or (workspace.total_members == 1):
-                workspace.is_active = False
-                workspaces_to_deactivate.append(workspace)
-            else:
-                return Response(
-                    {"error": "You cannot deactivate account as you are the only admin in some workspaces."},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
-        ProjectMember.objects.bulk_update(projects_to_deactivate, ["is_active"], batch_size=100)
-
-        WorkspaceMember.objects.bulk_update(workspaces_to_deactivate, ["is_active"], batch_size=100)
-
-        # Delete all workspace invites
-        WorkspaceMemberInvite.objects.filter(email=user.email).delete()
-
-        # Delete all sessions
-        Session.objects.filter(user_id=request.user.id).delete()
-
-        # Profile updates
-        profile = Profile.objects.get(user=user)
-
-        # Reset onboarding
-        profile.last_workspace_id = None
-        profile.is_tour_completed = False
-        profile.is_onboarded = False
-        profile.onboarding_step = {
-            "workspace_join": False,
-            "profile_complete": False,
-            "workspace_create": False,
-            "workspace_invite": False,
-        }
-        profile.save()
-
-        # Reset password
-        user.is_password_autoset = True
-        user.set_password(uuid.uuid4().hex)
-
-        # Deactivate the user
-        user.is_active = False
-        user.last_logout_ip = user_ip(request=request)
-        user.last_logout_time = timezone.now()
-        user.save()
+        error = deactivate_user(target=user, actor=request.user, request=request)
+        if error:
+            return Response({"error": error}, status=status.HTTP_400_BAD_REQUEST)
 
         # Send an email to the user
         user_deactivation_email.delay(base_host(request=request, is_app=True), user.id)
