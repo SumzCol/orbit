@@ -14,7 +14,7 @@ from plane.app.views.base import BaseAPIView
 from plane.db.models import User
 from plane.license.api.permissions import InstanceAdminPermission
 from plane.license.api.serializers import InstanceUserSerializer
-from plane.license.models import InstanceAdmin
+from plane.license.models import Instance, InstanceAdmin
 from plane.utils.user_deactivation import activate_user, deactivate_user
 
 
@@ -26,11 +26,20 @@ class InstanceUserEndpoint(BaseAPIView):
     permission_classes = [InstanceAdminPermission]
 
     def get(self, request):
+        # The admin rows are scoped to the active instance: that is the set
+        # InstanceAdminPermission checks and, more to the point, the one
+        # InstanceAdminEndpoint.delete addresses. Unscoped, this could hand the interface
+        # an id belonging to some other Instance row, and revoking it would answer 204
+        # while deleting nothing.
+        instance = Instance.objects.first()
+
         # Bots (WORKSPACE_SEED and friends) are internal identities that act only
         # through API tokens. They are not administrable people, they cannot sign in,
         # and listing them would offer actions that mean nothing for them.
         users = User.objects.filter(is_bot=False).annotate(
-            instance_admin_id=Subquery(InstanceAdmin.objects.filter(user_id=OuterRef("id")).values("id")[:1])
+            instance_admin_id=Subquery(
+                InstanceAdmin.objects.filter(user_id=OuterRef("id"), instance=instance).values("id")[:1]
+            )
         )
 
         search = request.query_params.get("search", None)

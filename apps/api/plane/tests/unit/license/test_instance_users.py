@@ -137,6 +137,32 @@ class TestInstanceUserEndpoint:
         # Every account is reachable by paging, none twice.
         assert len(first_emails | second_emails | {r["email"] for r in last["results"]}) == 7
 
+    def test_admin_rows_are_scoped_to_the_active_instance(self, instance):
+        """The annotated id is handed straight to InstanceAdminEndpoint.delete, which
+        filters on the active instance. An id from another Instance row would make
+        revoking answer 204 while deleting nothing, so it must not be reported here."""
+        admin = make_user("admin@example.com")
+        InstanceAdmin.objects.create(instance=instance, user=admin, role=20)
+
+        # Instance orders by -created_at, so build the stray row first to be sure the
+        # fixture instance stays the one Instance.objects.first() returns.
+        stray = Instance.objects.create(
+            instance_name="stray",
+            instance_id=uuid.uuid4().hex,
+            current_version="1.0.0",
+            last_checked_at="2025-01-01T00:00:00Z",
+        )
+        Instance.objects.filter(pk=stray.pk).update(created_at="2020-01-01T00:00:00Z")
+        assert Instance.objects.first().pk == instance.pk
+
+        elsewhere = make_user("elsewhere@example.com")
+        InstanceAdmin.objects.create(instance=stray, user=elsewhere, role=20)
+
+        rows = {r["email"]: r for r in listing(admin)}
+        assert rows["elsewhere@example.com"]["is_instance_admin"] is False
+        assert rows["elsewhere@example.com"]["instance_admin_id"] is None
+        assert rows["admin@example.com"]["is_instance_admin"] is True
+
     def test_a_non_admin_is_refused(self, instance):
         member = make_user("member@example.com")
         request = RequestFactory().get("/api/instances/users/")
@@ -199,49 +225,6 @@ class TestDeactivateEndpoint:
         bot = make_user("bot@localhost", is_bot=True)
         assert call(InstanceUserDeactivateEndpoint, admin, bot.id).status_code == 404
 
-    def test_password_autoset_is_exposed(self, instance):
-        """God Mode authenticates by password alone, so an account provisioned through
-        a provider cannot sign in there even once it is an admin. The list carries the
-        flag so the interface can warn before someone is locked out."""
-        admin = make_user("admin@example.com")
-        InstanceAdmin.objects.create(instance=instance, user=admin, role=20)
-        make_user("oidc@example.com", is_password_autoset=True)
-
-        rows = {r["email"]: r for r in listing(admin)}
-        assert rows["oidc@example.com"]["is_password_autoset"] is True
-        assert rows["admin@example.com"]["is_password_autoset"] is False
-
-    def test_the_second_page_continues_where_the_first_stopped(self, instance):
-        """The list is cursor paginated and the interface has a Load more button, so the
-        second page has to carry the rest rather than repeat the first."""
-        admin = make_user("admin@example.com")
-        InstanceAdmin.objects.create(instance=instance, user=admin, role=20)
-        for i in range(6):
-            make_user(f"user{i}@example.com")
-
-        def page(cursor):
-            request = RequestFactory().get("/api/instances/users/", {"cursor": cursor, "per_page": 3})
-            request.user = admin
-            return InstanceUserEndpoint().dispatch(request).data
-
-        first = page("3:0:0")
-        assert len(first["results"]) == 3
-        assert first["total_count"] == 7  # six members plus the admin
-        assert first["next_page_results"] is True
-
-        second = page(first["next_cursor"])
-        assert len(second["results"]) == 3
-
-        first_emails = {r["email"] for r in first["results"]}
-        second_emails = {r["email"] for r in second["results"]}
-        assert first_emails.isdisjoint(second_emails)
-
-        last = page(second["next_cursor"])
-        assert len(last["results"]) == 1
-        assert last["next_page_results"] is False
-        # Every account is reachable by paging, none twice.
-        assert len(first_emails | second_emails | {r["email"] for r in last["results"]}) == 7
-
     def test_a_non_admin_is_refused(self, instance):
         member = make_user("member@example.com")
         target = make_user("target@example.com")
@@ -264,49 +247,6 @@ class TestActivateEndpoint:
         target.refresh_from_db()
         assert target.is_active is True
         assert target.last_logout_time is None
-
-    def test_password_autoset_is_exposed(self, instance):
-        """God Mode authenticates by password alone, so an account provisioned through
-        a provider cannot sign in there even once it is an admin. The list carries the
-        flag so the interface can warn before someone is locked out."""
-        admin = make_user("admin@example.com")
-        InstanceAdmin.objects.create(instance=instance, user=admin, role=20)
-        make_user("oidc@example.com", is_password_autoset=True)
-
-        rows = {r["email"]: r for r in listing(admin)}
-        assert rows["oidc@example.com"]["is_password_autoset"] is True
-        assert rows["admin@example.com"]["is_password_autoset"] is False
-
-    def test_the_second_page_continues_where_the_first_stopped(self, instance):
-        """The list is cursor paginated and the interface has a Load more button, so the
-        second page has to carry the rest rather than repeat the first."""
-        admin = make_user("admin@example.com")
-        InstanceAdmin.objects.create(instance=instance, user=admin, role=20)
-        for i in range(6):
-            make_user(f"user{i}@example.com")
-
-        def page(cursor):
-            request = RequestFactory().get("/api/instances/users/", {"cursor": cursor, "per_page": 3})
-            request.user = admin
-            return InstanceUserEndpoint().dispatch(request).data
-
-        first = page("3:0:0")
-        assert len(first["results"]) == 3
-        assert first["total_count"] == 7  # six members plus the admin
-        assert first["next_page_results"] is True
-
-        second = page(first["next_cursor"])
-        assert len(second["results"]) == 3
-
-        first_emails = {r["email"] for r in first["results"]}
-        second_emails = {r["email"] for r in second["results"]}
-        assert first_emails.isdisjoint(second_emails)
-
-        last = page(second["next_cursor"])
-        assert len(last["results"]) == 1
-        assert last["next_page_results"] is False
-        # Every account is reachable by paging, none twice.
-        assert len(first_emails | second_emails | {r["email"] for r in last["results"]}) == 7
 
     def test_a_non_admin_is_refused(self, instance):
         member = make_user("member@example.com")

@@ -28,7 +28,7 @@ from plane.db.models import (
     WorkspaceMember,
     WorkspaceMemberInvite,
 )
-from plane.license.models import InstanceAdmin
+from plane.license.models import Instance, InstanceAdmin
 
 
 # Role 20 is Admin on both ProjectMember and WorkspaceMember.
@@ -77,7 +77,10 @@ def deactivate_user(*, target, actor=None, request=None):
     """
     actor = actor or target
 
-    if InstanceAdmin.objects.filter(user=target).exists():
+    # Scoped like InstanceAdminPermission: administering some other Instance row is not
+    # a reason to refuse here. This one errs safe either way -- unscoped it would only
+    # over-refuse -- but the two should agree on what "an instance admin" means.
+    if InstanceAdmin.objects.filter(user=target, instance=Instance.objects.first()).exists():
         return "Instance admins cannot be deactivated. Remove admin access first."
 
     projects_to_suspend = _memberships_to_suspend(ProjectMember, "project_id", target)
