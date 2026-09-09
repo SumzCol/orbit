@@ -8,6 +8,7 @@ import { observer } from "mobx-react";
 // icons
 import { TriangleAlert } from "lucide-react";
 // plane internal packages
+import { LOGIN_MEDIUM_LABELS } from "@plane/constants";
 import { Button } from "@makeplane/propel/components/button";
 import { Tooltip } from "@makeplane/propel/components/tooltip";
 import { DeactivatedUserOutline } from "@makeplane/propel/icons";
@@ -36,6 +37,12 @@ const NO_PASSWORD_EXPLANATION =
 
 const fullName = (user: TInstanceUser) =>
   [user.first_name, user.last_name].filter(Boolean).join(" ") || user.display_name || user.email;
+
+/** How this account last signed in, named the way the workspace members screen names it.
+ *  Falls back to the raw value so a provider added to the API but not yet to the label
+ *  map shows something true rather than "undefined". */
+const signInMethod = (user: TInstanceUser) =>
+  LOGIN_MEDIUM_LABELS[user.last_login_medium as keyof typeof LOGIN_MEDIUM_LABELS] ?? user.last_login_medium;
 
 const PILL = "flex flex-shrink-0 items-center gap-1 rounded-sm border px-1.5 py-0.5 text-11";
 
@@ -204,8 +211,15 @@ export const UserListItem = observer(function UserListItem(props: TUserListItemP
       <div className="flex flex-shrink-0 items-center gap-4">
         <div className="hidden text-right text-13 text-tertiary sm:block">
           <div>Joined {renderFormattedDate(user.date_joined)}</div>
+          {/* The method is only shown next to a real sign-in. last_login_medium is a
+              non-nullable column defaulting to "email", so on an account that has never
+              signed in it is a default rather than a fact, and printing it would invent
+              a history. It is also the *last* method, not the one the account was made
+              with -- Plane records no such thing -- hence "via" rather than "created". */}
           <div className={cn(user.last_login_time ? "" : "italic")}>
-            {user.last_login_time ? `Last seen ${renderFormattedDate(user.last_login_time)}` : "Never signed in"}
+            {user.last_login_time
+              ? `Last seen ${renderFormattedDate(user.last_login_time)} via ${signInMethod(user)}`
+              : "Never signed in"}
           </div>
         </div>
 
